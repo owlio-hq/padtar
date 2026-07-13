@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Plus, Trash2, StickyNote, FileSpreadsheet, FileText, Printer, Pencil, Lock,
+  Plus, Trash2, FileSpreadsheet, FileText, Printer, Pencil, Lock,
   Wheat, Flame, Fuel, Box, Users, Calendar, Factory, Ruler, Receipt, type LucideIcon,
 } from 'lucide-react'
 import { shakkarparaApi } from './api'
@@ -15,6 +15,7 @@ import { useLabels } from '../../i18n/LabelsContext'
 import { PageHeader } from '../../components/PageHeader'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { NumberField } from '../../components/NumberField'
+import { NotesGrid } from '../../components/NotesGrid'
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
@@ -361,9 +362,8 @@ export function BatchFormPage() {
           {/* Oil Sheet sits inside the Cooking/Frying card (its net vaprash feeds Oil Vaprayel). */}
           {cat === 'Cooking/Frying' && (
             <div className="oil-sheet-box">
-              <div className="mb-2 uppercase tracking-wide">
+              <div className="mb-2 uppercase tracking-wide" title="Net Vaprash from this table is used automatically as the Oil Vaprayel usage above" style={{ cursor: 'help', display: 'inline-block' }}>
                 <span className="oil-sheet-label">{t('shakkarpara.oil_sit', 'Oil Sheet')}</span>
-                <span style={{ textTransform: 'none', fontWeight: 400, marginLeft: 8, letterSpacing: 0, fontSize: 12, color: 'var(--text-muted)' }}>— net vaprash feeds Oil Vaprayel above</span>
               </div>
               <div className="grid grid-cols-5 gap-3">
                 <div>
@@ -395,19 +395,7 @@ export function BatchFormPage() {
         )
       })}
 
-      <div className="card mt-5 p-4">
-        <label className="mb-1 flex items-center gap-1.5 text-sm font-medium" style={{ color: 'var(--text)' }}>
-          <StickyNote size={15} />
-          {t('shakkarpara.notes', 'Notes')}
-        </label>
-        <textarea
-          className="field"
-          rows={3}
-          placeholder="UPI payment received, party name, anything worth remembering…"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-        />
-      </div>
+      <NotesGrid value={notes || null} onChange={(v) => setNotes(v ?? '')} />
 
       <div className="mt-5 grid grid-cols-3 gap-3">
         <div className="summary-card">

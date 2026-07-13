@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, StickyNote, FileSpreadsheet, FileText, Printer, Pencil, Lock, ShoppingCart } from 'lucide-react'
+import { Plus, Trash2, FileSpreadsheet, FileText, Printer, Pencil, Lock, ShoppingCart } from 'lucide-react'
 import { rojmelApi } from './api'
 import { computeDay } from './calc'
 import type { DayInput, MoneyLine, SalesLine } from './types'
@@ -11,6 +11,7 @@ import { useLabels } from '../../i18n/LabelsContext'
 import { PageHeader } from '../../components/PageHeader'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { NumberField } from '../../components/NumberField'
+import { NotesGrid } from '../../components/NotesGrid'
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
@@ -328,19 +329,7 @@ export function DayFormPage() {
         <MoneyLinesEditor title={t('rojmel.expense', 'Expense')} lines={expenseLines} onChange={setExpenseLines} />
       </div>
 
-      <div className="card mt-5 p-4">
-        <label className="mb-1 flex items-center gap-1.5 text-sm font-medium" style={{ color: 'var(--text)' }}>
-          <StickyNote size={15} />
-          {t('rojmel.notes', 'Notes')}
-        </label>
-        <textarea
-          className="field"
-          rows={3}
-          placeholder="Who took money, UPI/online payments, anything untracked worth remembering…"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-        />
-      </div>
+      <NotesGrid value={notes || null} onChange={(v) => setNotes(v ?? '')} />
 
       <div className="card mt-5 flex items-center justify-between p-4">
         <div className="text-sm" style={{ color: 'var(--text-muted)' }}>

@@ -38,15 +38,24 @@ def title_block(title: str, subtitle: str) -> list:
     ]
 
 
-def notes_section(entries: list[tuple[str, str]]) -> list:
-    """entries: list of (date_label, note_text). Renders as its own clearly
-    marked section — notes are never mixed into the data tables."""
+def notes_section(entries: list[tuple[str, list[tuple[str, str]]]]) -> list:
+    """entries: list of (date_label, note_rows) where note_rows is a list of
+    (note, detail) pairs from core.notes.parse_notes. Renders one PDF row per
+    note line — its own clearly marked section, never mixed into data tables."""
+    entries = [(d, rows) for d, rows in entries if rows]
     if not entries:
         return []
 
     flow: list = [PageBreak(), Paragraph("Notes", SECTION_STYLE)]
-    rows = [[Paragraph(date, NOTE_DATE_STYLE), Paragraph(note, BODY_STYLE)] for date, note in entries]
-    table = Table(rows, colWidths=[3 * cm, 14 * cm])
+    rows = []
+    for date, note_rows in entries:
+        for i, (note, detail) in enumerate(note_rows):
+            rows.append([
+                Paragraph(date if i == 0 else "", NOTE_DATE_STYLE),
+                Paragraph(note, BODY_STYLE),
+                Paragraph(detail, BODY_STYLE),
+            ])
+    table = Table(rows, colWidths=[3 * cm, 8.5 * cm, 5.5 * cm])
     table.setStyle(
         TableStyle(
             [

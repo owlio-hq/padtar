@@ -88,8 +88,8 @@ export function SettingsPage() {
           </h3>
         </div>
         <p className="mb-3 text-xs" style={{ color: 'var(--text-muted)' }}>
-          Snapshots are taken automatically every time you save. They're stored locally on this
-          computer only. Backups are <b>never deleted</b> unless you turn on auto-delete below.
+          Padtar saves a backup copy of your data automatically every time you save an entry.
+          Use “Back up now” for an extra copy, or “Restore” to go back to an older copy of your data.
         </p>
         <div className="mb-4 flex gap-2">
           <button
@@ -177,8 +177,8 @@ export function SettingsPage() {
           </h3>
         </div>
         <p className="mb-3 text-xs" style={{ color: 'var(--text-muted)' }}>
-          When on, backups older than the chosen period are deleted. When off (default), nothing
-          is ever deleted.
+          Normally every backup is kept forever. Turn this on only if you want the app to clean up
+          backups older than the time you choose here.
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-sm">
@@ -257,8 +257,7 @@ export function SettingsPage() {
   )
 }
 
-function PasswordSettings() {
-  const [which, setWhich] = useState<'login' | 'edit'>('login')
+function PasswordChanger({ which, label, hint }: { which: 'login' | 'edit'; label: string; hint: string }) {
   const [currentEdit, setCurrentEdit] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -266,48 +265,32 @@ function PasswordSettings() {
   const change = useMutation({
     mutationFn: () => authApi.changePassword(which, currentEdit, newPassword),
     onSuccess: () => {
-      setMsg({ ok: true, text: `${which === 'login' ? 'Login' : 'Edit'} password changed.` })
+      setMsg({ ok: true, text: 'Password changed.' })
       setCurrentEdit('')
       setNewPassword('')
     },
-    onError: () => setMsg({ ok: false, text: 'Wrong edit password — nothing changed.' }),
+    onError: () => setMsg({ ok: false, text: 'Wrong admin password — nothing changed.' }),
   })
 
   return (
-    <div className="card mb-4 p-5">
-      <div className="mb-3 flex items-center gap-2">
-        <KeyRound size={16} style={{ color: 'var(--text-muted)' }} />
-        <h3 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
-          Passwords
-        </h3>
-      </div>
-      <p className="mb-3 text-xs" style={{ color: 'var(--text-muted)' }}>
-        The <b>login</b> password opens the app. The <b>edit</b> password is needed to change rates,
-        units, ingredients, or to delete. Changing either requires the current edit password.
-      </p>
-
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
-          <label className="field-label">Change which</label>
-          <select className="field w-auto" value={which} onChange={(e) => setWhich(e.target.value as 'login' | 'edit')}>
-            <option value="login">Login password</option>
-            <option value="edit">Edit password</option>
-          </select>
-        </div>
-        <div>
-          <label className="field-label">Current edit password</label>
-          <input
-            type="password"
-            className="field"
-            value={currentEdit}
-            onChange={(e) => setCurrentEdit(e.target.value)}
-            placeholder="Required"
-          />
-        </div>
-        <div>
-          <label className="field-label">New {which} password</label>
-          <input type="password" className="field" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-        </div>
+    <div className="setting-block">
+      <h4 className="text-[13px] font-semibold" style={{ color: 'var(--text)' }}>{label}</h4>
+      <p className="mb-3 mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>{hint}</p>
+      <div className="grid gap-2">
+        <input
+          type="password"
+          className="field"
+          value={currentEdit}
+          onChange={(e) => setCurrentEdit(e.target.value)}
+          placeholder="Admin (edit) password"
+        />
+        <input
+          type="password"
+          className="field"
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          placeholder={`New ${which} password`}
+        />
         <button
           className="btn btn-primary"
           disabled={change.isPending || !currentEdit || !newPassword}
@@ -316,14 +299,42 @@ function PasswordSettings() {
             change.mutate()
           }}
         >
-          Change password
+          Change {which} password
         </button>
       </div>
       {msg && (
-        <p className="mt-3 text-xs" style={{ color: msg.ok ? 'var(--tint-padtar-text)' : 'var(--tint-negative-text)' }}>
+        <p className="mt-2 text-xs" style={{ color: msg.ok ? 'var(--tint-padtar-text)' : 'var(--tint-negative-text)' }}>
           {msg.text}
         </p>
       )}
+    </div>
+  )
+}
+
+function PasswordSettings() {
+  return (
+    <div className="card mb-4 p-5">
+      <div className="mb-1 flex items-center gap-2">
+        <KeyRound size={16} style={{ color: 'var(--text-muted)' }} />
+        <h3 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+          Admin — passwords
+        </h3>
+      </div>
+      <p className="mb-4 text-xs" style={{ color: 'var(--text-muted)' }}>
+        Changing any password here needs the current admin (edit) password.
+      </p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <PasswordChanger
+          which="login"
+          label="Login password"
+          hint="Asked every time the app is opened. Everyone who uses the app enters this."
+        />
+        <PasswordChanger
+          which="edit"
+          label="Edit (admin) password"
+          hint="Asked before changing any rate, unit or item, and before deleting anything. Keep this one private."
+        />
+      </div>
     </div>
   )
 }
@@ -379,6 +390,10 @@ function UpdateSettings() {
           App & updates
         </h3>
       </div>
+      <p className="mb-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+        Checks the internet for a newer version of Padtar and installs it. Your entries, backups
+        and passwords are not touched by an update.
+      </p>
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
           Current version: <b style={{ color: 'var(--text)' }}>v{version || '…'}</b>

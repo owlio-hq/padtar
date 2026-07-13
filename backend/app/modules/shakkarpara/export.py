@@ -32,6 +32,7 @@ from app.core.export_style import (
     USAGE_FILL,
     USAGE_TEXT,
 )
+from app.core.notes import parse_notes
 from app.core.pdf import BODY_STYLE, SECTION_STYLE, new_document, notes_section, spacer, title_block
 from app.modules.shakkarpara.schemas import BatchOut
 
@@ -127,14 +128,15 @@ def build_excel(batches: list[BatchOut]) -> bytes:
 
     notes_ws = wb.create_sheet("Notes")
     notes_ws.column_dimensions["A"].width = 16
-    notes_ws.column_dimensions["B"].width = 70
-    notes_ws.append(["Date", "Notes"])
+    notes_ws.column_dimensions["B"].width = 45
+    notes_ws.column_dimensions["C"].width = 35
+    notes_ws.append(["Date", "Note", "Detail"])
     for cell in notes_ws[1]:
         cell.font = Font(bold=True)
         cell.fill = _fill(HEADER_FILL)
     for batch in sorted(batches, key=lambda b: b.date):
-        if batch.notes:
-            notes_ws.append([batch.date.strftime("%d %b %Y"), batch.notes])
+        for i, (note, detail) in enumerate(parse_notes(batch.notes)):
+            notes_ws.append([batch.date.strftime("%d %b %Y") if i == 0 else "", note, detail])
             for cell in notes_ws[notes_ws.max_row]:
                 cell.alignment = Alignment(wrap_text=True, vertical="top")
 
@@ -218,7 +220,7 @@ def build_pdf(batches: list[BatchOut]) -> bytes:
 
         story.append(spacer(0.6))
 
-    note_entries = [(b.date.strftime("%d %b %Y"), b.notes) for b in sorted(batches, key=lambda b: b.date) if b.notes]
+    note_entries = [(b.date.strftime("%d %b %Y"), parse_notes(b.notes)) for b in sorted(batches, key=lambda b: b.date) if b.notes]
     story.extend(notes_section(note_entries))
 
     if not batches:

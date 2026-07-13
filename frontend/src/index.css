@@ -382,7 +382,8 @@ input[type='number'] {
   align-items: center;
   justify-content: space-between;
   padding: 10px 16px;
-  border-bottom: 1px solid color-mix(in srgb, var(--cat, var(--border)) 30%, transparent);
+  background: color-mix(in srgb, var(--cat, var(--surface)) 9%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--cat, var(--border)) 40%, transparent);
 }
 .category-strip .category-title {
   display: inline-flex;
@@ -403,11 +404,11 @@ input[type='number'] {
   background-color: color-mix(in srgb, var(--cat, var(--surface-2)) 12%, transparent);
   color: var(--cat);
 }
-.subtotal-row td {
+.data-table .subtotal-row td {
   color: var(--cat, var(--subtotal-text));
   font-weight: 600;
-  border-top: 1px solid color-mix(in srgb, var(--cat, var(--border-strong)) 30%, transparent);
-  background: transparent;
+  border-top: 1px solid color-mix(in srgb, var(--cat, var(--border-strong)) 40%, transparent);
+  background: color-mix(in srgb, var(--cat, var(--surface)) 9%, transparent);
 }
 /* oil sheet — nested bordered sub-box inside the Cooking/Frying card */
 .oil-sheet-box {
@@ -422,6 +423,44 @@ input[type='number'] {
   letter-spacing: 0.05em;
   color: var(--tint-total-text);
 }
+/* 2-column notes grid — cells wrap and grow downward, never sideways */
+.notes-grid-head,
+.notes-grid-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 30px;
+  gap: 8px;
+  align-items: start;
+}
+.notes-grid-head {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  padding: 0 2px;
+}
+.notes-grid-row {
+  margin-bottom: 6px;
+}
+.notes-cell {
+  resize: none;
+  overflow: hidden;
+  min-height: 32px;
+  height: auto;
+  line-height: 1.45;
+  padding: 6px 9px;
+}
+.notes-grid-row .icon-btn {
+  margin-top: 3px;
+}
+
+/* bordered sub-block inside a settings card */
+.setting-block {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 14px 16px;
+  background: var(--surface-alt);
+}
+
 /* circular back button in page headers */
 .back-circle {
   display: inline-flex;
