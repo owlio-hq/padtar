@@ -1,0 +1,797 @@
+@import "tailwindcss";
+
+:root {
+  /* Light theme — tuned for older users who need higher contrast.
+     Cards are pure white and sit on a lightly tinted page bg so they visibly
+     "pop". Text is near-black. Borders are stronger. Semantic tints are more
+     saturated so pills and highlighted rows read at a glance. */
+  --surface: #ffffff;
+  --surface-alt: #eef0f4;       /* page bg — tinted so white cards stand out */
+  --surface-2: #e6e9ee;         /* hover / muted panels */
+  --border: #ccd1d9;             /* was #e4e6ea — clearly visible now */
+  --border-strong: #a8afba;      /* was #d0d3d9 — real edge */
+  --text: #0d0e11;               /* darker primary */
+  --text-secondary: #3d4049;     /* was #565963 — stronger */
+  --text-muted: #6b6e77;         /* was #8a8d96 — still muted, but readable */
+  --accent: #1f7a45;             /* deeper, more saturated green */
+  --accent-hover: #196438;
+  --accent-contrast: #ffffff;
+
+  /* Semantic tints — more saturated (still readable) so bars/pills read
+     clearly. Text tokens stay dark for high contrast on the fill. */
+  --tint-rate-bg: #d3e7f6;
+  --tint-rate-text: #124a70;
+  --tint-usage-bg: #f7e5b1;
+  --tint-usage-text: #6a520f;
+  --tint-total-bg: #cfe9d5;
+  --tint-total-text: #1e5c3d;
+  --tint-padtar-bg: #ffd39a;     /* warm amber — matches export palette,
+                                     makes the padtar/cash-on-hand pop */
+  --tint-padtar-text: #5c2c0a;
+  --tint-negative-bg: #f7d5d5;
+  --tint-negative-text: #862323;
+
+  --row-hover: #e6e9ee;
+  --focus-ring: rgba(31, 122, 69, 0.28);
+  --overlay: rgba(15, 17, 22, 0.5);
+
+  /* entry-table cell styling (light) */
+  --input-box-bg: #f1f6fc;      /* faint blue fill inside editable input boxes */
+  --input-col-bg: rgba(55, 138, 221, 0.05); /* faint tint marking the editable column */
+  --locked-field-bg: #f4f5f7;   /* faint neutral for locked production/office fields */
+  --subtotal-bg: #e4e8ef;       /* neutral band — category subtotal + grand total */
+  --subtotal-text: #21252c;
+
+  --radius: 3px;
+  --radius-card: 4px;
+
+  color-scheme: light;
+}
+
+.dark {
+  /* near-black, Render-inspired */
+  --surface: #101013;
+  --surface-alt: #0b0b0d;
+  --surface-2: #17171b;
+  --border: #202025;
+  --border-strong: #2d2d34;
+  --text: #ededf0;
+  --text-secondary: #a0a0a8;
+  --text-muted: #6a6a72;
+  --accent: #2f9d68;
+  --accent-hover: #37b478;
+  --accent-contrast: #04160d;
+
+  --tint-rate-bg: #0f2233;
+  --tint-rate-text: #6cb5e6;
+  --tint-usage-bg: #2b2410;
+  --tint-usage-text: #dcb55f;
+  --tint-total-bg: #10251a;
+  --tint-total-text: #55c290;
+  --tint-padtar-bg: #14311f;
+  --tint-padtar-text: #63d29c;
+  --tint-negative-bg: #2a1414;
+  --tint-negative-text: #e28c8c;
+
+  --row-hover: #17171b;
+  --focus-ring: rgba(47, 157, 104, 0.3);
+  --overlay: rgba(0, 0, 0, 0.6);
+
+  /* entry-table cell styling (dark) */
+  --input-box-bg: #12151b;      /* faint fill inside editable input boxes */
+  --input-col-bg: rgba(108, 181, 230, 0.06); /* faint tint marking the editable column */
+  --locked-field-bg: #191a1f;   /* faint neutral for locked production/office fields */
+  --subtotal-bg: #1c1c22;       /* neutral band — category subtotal + grand total */
+  --subtotal-text: #ededf0;
+
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background-color: var(--surface-alt);
+  color: var(--text);
+  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* --- buttons --- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: var(--radius);
+  padding: 0 12px;
+  height: 30px;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  border: 1px solid transparent;
+}
+.btn:active {
+  transform: translateY(0.5px);
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+.btn-sm {
+  height: 26px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+.btn-primary {
+  background-color: var(--accent);
+  color: var(--accent-contrast);
+}
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--accent-hover);
+}
+.btn-outline {
+  background-color: transparent;
+  color: var(--text-secondary);
+  border-color: var(--border-strong);
+}
+.btn-outline:hover:not(:disabled) {
+  background-color: var(--surface-2);
+  color: var(--text);
+}
+.btn-danger {
+  background-color: transparent;
+  color: var(--tint-negative-text);
+  border-color: var(--tint-negative-text);
+}
+.btn-danger:hover:not(:disabled) {
+  background-color: var(--tint-negative-bg);
+}
+
+/* small square icon button (row actions, toolbar) */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  color: var(--text-muted);
+  border-radius: var(--radius);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.icon-btn:hover {
+  background-color: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border);
+}
+.icon-btn-danger:hover {
+  background-color: var(--tint-negative-bg);
+  color: var(--tint-negative-text);
+  border-color: transparent;
+}
+
+/* --- inputs --- */
+.field {
+  width: 100%;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background-color: var(--surface);
+  color: var(--text);
+  height: 32px;
+  padding: 0 9px;
+  font-size: 12.5px;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+textarea.field {
+  height: auto;
+  padding: 7px 9px;
+  line-height: 1.5;
+}
+.field:hover {
+  border-color: var(--border-strong);
+}
+.field:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.field-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 5px;
+}
+
+/* no spinner arrows on number inputs — cleaner, type-only */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* --- cards --- */
+.card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+
+.metric-card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 12px 14px;
+}
+.metric-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.metric-value {
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.1;
+}
+
+/* top input cards (date / production / office expense / cost per unit) */
+.field-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 11px 14px;
+}
+.field-card .field,
+.field-card .locked-field {
+  border: none;
+  background: transparent;
+  padding-left: 0;
+  padding-right: 0;
+  height: 26px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.field-card .locked-field:hover {
+  color: var(--accent);
+}
+
+/* big summary cards (grand total / production / cost per unit) */
+.summary-card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 16px 18px;
+}
+.summary-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.summary-value {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- pills / badges --- */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.pill-accent {
+  background-color: var(--tint-padtar-bg);
+  color: var(--tint-padtar-text);
+}
+.pill-padtar {
+  background-color: var(--tint-padtar-bg);
+  color: var(--tint-padtar-text);
+  font-weight: 600;
+}
+.pill-danger {
+  background-color: var(--tint-negative-bg);
+  color: var(--tint-negative-text);
+}
+
+/* --- entry-table column language ---
+   Instead of heavy colored blocks on some columns, each column type has a clear
+   SHAPE so the UI reads itself:
+     · editable (Vaprash / Pic / Amount) — a visible input BOX ("type here")
+     · locked (Rate / Unit)              — muted text + a small lock, no box
+     · total                             — plain, green number (calculated)
+     · category subtotal / grand total   — neutral band
+   All category tables use table-layout:fixed + a shared colgroup so widths line up. */
+.category-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 2px 6px;
+}
+.category-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.entry-table {
+  table-layout: fixed;
+}
+.entry-table thead th {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* per-column header colours — each column reads distinctly */
+.col-editable-head {
+  color: var(--tint-rate-text); /* blue — you type here */
+}
+.col-locked-head {
+  color: var(--tint-usage-text); /* amber — locked, password to change */
+}
+.col-total-head {
+  color: var(--tint-total-text); /* green — calculated */
+  text-align: right;
+}
+.col-lock-head-ico {
+  display: inline-flex;
+  vertical-align: -1px;
+  margin-left: 3px;
+  opacity: 0.7;
+}
+
+/* category card — full colored border + icon header + colored subtotal row
+   (client-approved reference). Color comes from the inline `--cat` custom prop. */
+.category-card {
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--cat, var(--border)) 45%, transparent);
+}
+.category-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--cat, var(--border)) 30%, transparent);
+}
+.category-strip .category-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--cat, var(--text));
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+.btn-cat {
+  background: transparent;
+  color: var(--cat, var(--text-secondary));
+  border-color: color-mix(in srgb, var(--cat, var(--border-strong)) 55%, transparent);
+}
+.btn-cat:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--cat, var(--surface-2)) 12%, transparent);
+  color: var(--cat);
+}
+.subtotal-row td {
+  color: var(--cat, var(--subtotal-text));
+  font-weight: 600;
+  border-top: 1px solid color-mix(in srgb, var(--cat, var(--border-strong)) 30%, transparent);
+  background: transparent;
+}
+/* oil sheet — nested bordered sub-box inside the Cooking/Frying card */
+.oil-sheet-box {
+  margin: 12px 16px 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 12px 14px 14px;
+}
+.oil-sheet-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--tint-total-text);
+}
+/* circular back button in page headers */
+.back-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.12s ease, color 0.12s ease;
+}
+.back-circle:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* editable column → subtle tint + a real boxed input ("type here"), per client ref */
+.entry-table td.col-editable,
+.entry-table th.col-editable-head {
+  background: var(--input-col-bg);
+}
+.entry-table td.col-editable {
+  padding: 6px 14px;
+}
+.entry-table td.col-editable .field-inline {
+  border: 1px solid var(--border-strong);
+  background: var(--input-box-bg);
+  border-radius: var(--radius);
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+  height: 32px;
+  padding: 0 10px;
+}
+.entry-table td.col-editable .field-inline::placeholder {
+  color: var(--text-muted);
+}
+.entry-table td.col-editable .field-inline:hover {
+  border-color: var(--tint-rate-text);
+}
+.entry-table td.col-editable .field-inline:focus {
+  border-color: var(--tint-rate-text);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+  background: var(--surface);
+}
+/* auto-calculated cell (oil vaprayel) — boxed, amber, clearly not typed */
+.auto-box {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  color: var(--tint-usage-text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* locked cell → muted text, clearly not editable (lock lives in the header) */
+.entry-table td.col-locked {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.col-total {
+  text-align: right;
+  font-weight: 600;
+  color: var(--tint-total-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* category subtotal shown as a pill in the card header (reference style) */
+.subtotal-pill {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 3px 12px;
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+.grand-total-bar {
+  background-color: var(--subtotal-bg);
+  border-color: var(--border-strong);
+}
+/* a locked display field rendered as a button (production, office expenses) */
+.locked-field {
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-secondary);
+  background-color: var(--locked-field-bg);
+}
+.locked-field:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* --- tables --- */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.data-table thead th {
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.data-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.data-table th.sortable:hover {
+  color: var(--text-secondary);
+}
+.sort-ind {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 3px;
+  opacity: 0.9;
+}
+.data-table tbody td {
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+/* editable cells: value sits in the cell, no box — reveals on hover, becomes a field on focus */
+.data-table td.cell-edit {
+  padding: 4px 8px;
+}
+.field-inline {
+  width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  height: 30px;
+  padding: 0 8px;
+  font-size: 12.5px;
+  border-radius: var(--radius);
+  transition: background-color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.field-inline:hover {
+  background: var(--surface-2);
+}
+.field-inline:focus {
+  outline: none;
+  background: var(--surface);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.data-table tbody tr {
+  transition: background-color 0.1s ease;
+}
+.row-hover tbody tr:hover {
+  background-color: var(--row-hover);
+}
+.row-clickable {
+  cursor: pointer;
+}
+
+/* --- sidebar nav --- */
+.nav-section {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 0 10px;
+  margin: 14px 0 6px;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  border-radius: var(--radius);
+  padding: 9px 11px;
+  font-size: 13.5px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  border-left: 2px solid transparent;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.nav-item:hover {
+  background-color: var(--row-hover);
+  color: var(--text);
+}
+.nav-item.active {
+  background-color: var(--tint-total-bg);
+  color: var(--tint-total-text);
+  font-weight: 500;
+  border-left-color: var(--accent);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+/* --- segmented control --- */
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2px;
+  gap: 2px;
+}
+.segmented button {
+  padding: 4px 11px;
+  border-radius: 2px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.segmented button:hover {
+  color: var(--text);
+}
+.segmented button.active {
+  background-color: var(--surface-2);
+  color: var(--text);
+}
+
+/* --- dropdown menu --- */
+.menu {
+  min-width: 150px;
+  background-color: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-card);
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  font-size: 12.5px;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-align: left;
+}
+.menu-item:hover {
+  background-color: var(--row-hover);
+}
+.menu-item-danger {
+  color: var(--tint-negative-text);
+}
+.menu-item-danger:hover {
+  background-color: var(--tint-negative-bg);
+}
+
+/* --- dialog --- */
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 20px;
+}
+.dialog {
+  width: 100%;
+  max-width: 380px;
+  background-color: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-card);
+  padding: 20px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+}
+
+/* row-action reveal: keep action hidden until the row is hovered */
+.reveal-row .reveal-target {
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.reveal-row:hover .reveal-target,
+.reveal-target:focus-within {
+  opacity: 1;
+}
+
+/* header toggle buttons (theme / language) — clear hover + press feedback */
+.toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background-color: var(--surface-2);
+  color: var(--text-secondary);
+  padding: 5px 9px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease, transform 0.06s ease;
+}
+.toggle-btn:hover {
+  background-color: var(--row-hover);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.toggle-btn:active {
+  transform: translateY(0.5px);
+  background-color: var(--surface-2);
+}
+
+/* subtle breadcrumb back link */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  transition: color 0.12s ease;
+}
+.back-link:hover {
+  color: var(--text);
+}
+
+/* --- print: show only the form content, clean for paper --- */
+@media print {
+  /* hide chrome: sidebar, topbar, page-header actions, buttons */
+  .app-sidebar,
+  .app-topbar,
+  .page-header-actions,
+  .btn,
+  .icon-btn,
+  .reveal-target,
+  .toggle-btn {
+    display: none !important;
+  }
+  body,
+  .app-main {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .card {
+    border: 1px solid #bbb !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+  .data-table td,
+  .data-table th {
+    color: #000 !important;
+  }
+  /* keep the semantic washes light but visible on paper */
+  .subtotal-row td,
+  .grand-total-bar {
+    background: #eee !important;
+    color: #000 !important;
+  }
+  @page {
+    margin: 1.4cm;
+  }
+}

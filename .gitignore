@@ -1,0 +1,36 @@
+# data (db, backups, logs) - never commit real business data
+data/*
+!data/.gitkeep
+
+# packaged distributable (built separately from the repo)
+release/
+
+# python
+backend/.venv/
+backend/venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# node / frontend
+frontend/node_modules/
+frontend/.vite/
+*.tsbuildinfo
+# NOTE: frontend/dist IS committed on purpose — the client PC cannot run npm,
+# so in-app updates ship the built frontend straight from this repo.
+
+# excel lock files
+source_excel/~$*.xlsx
+
+# editor/os
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# keep client-private material OUT of the public repo
+source_excel/
+docs/
+CLAUDE.md
+.claude/
+*.tmp.*
