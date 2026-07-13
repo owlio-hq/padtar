@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Database, RotateCcw, HardDrive, KeyRound } from 'lucide-react'
+import { Database, RotateCcw, HardDrive, KeyRound, RefreshCw } from 'lucide-react'
 import { api, authApi } from '../../api/client'
 import { PageHeader } from '../../components/PageHeader'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
@@ -77,6 +77,8 @@ export function SettingsPage() {
       <PageHeader title="Settings" subtitle="Passwords, backups and preferences" />
 
       <PasswordSettings />
+
+      <UpdateSettings />
 
       <div className="card mb-4 p-5">
         <div className="mb-3 flex items-center gap-2">
@@ -320,6 +322,75 @@ function PasswordSettings() {
       {msg && (
         <p className="mt-3 text-xs" style={{ color: msg.ok ? 'var(--tint-padtar-text)' : 'var(--tint-negative-text)' }}>
           {msg.text}
+        </p>
+      )}
+    </div>
+  )
+}
+
+function UpdateSettings() {
+  const [version, setVersion] = useState('')
+  const [status, setStatus] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    api.get<{ version: string }>('/system/status').then((s) => setVersion(s.version)).catch(() => {})
+  }, [])
+
+  async function checkUpdate() {
+    setBusy(true)
+    setStatus(null)
+    try {
+      const r = await api.post<{ status: string; version?: string }>('/system/check-update')
+      if (r.status === 'updated') {
+        setStatus('Update installed — restarting the app…')
+        // wait for the server to come back on the new code, then reload
+        const poll = () => {
+          fetch('/api/health')
+            .then((res) => (res.ok ? window.location.reload() : setTimeout(poll, 2000)))
+            .catch(() => setTimeout(poll, 2000))
+        }
+        setTimeout(poll, 3000)
+        return
+      }
+      setStatus(
+        r.status === 'up_to_date'
+          ? `You have the latest version (v${r.version ?? version}).`
+          : r.status === 'offline'
+            ? 'No internet — could not check for updates.'
+            : r.status === 'dev'
+              ? 'Updates only apply in the installed app.'
+              : r.status === 'error'
+                ? 'Update failed — nothing was changed. Try again later.'
+                : 'Access check failed.',
+      )
+    } catch {
+      setStatus('Could not check — try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="card mb-4 p-5">
+      <div className="mb-3 flex items-center gap-2">
+        <RefreshCw size={16} style={{ color: 'var(--text-muted)' }} />
+        <h3 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+          App & updates
+        </h3>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+          Current version: <b style={{ color: 'var(--text)' }}>v{version || '…'}</b>
+        </span>
+        <button className="btn btn-outline" onClick={checkUpdate} disabled={busy}>
+          <RefreshCw size={14} className={busy ? 'animate-spin' : undefined} />
+          {busy ? 'Checking…' : 'Check for update'}
+        </button>
+      </div>
+      {status && (
+        <p className="mt-3 text-xs" style={{ color: 'var(--text-secondary)' }}>
+          {status}
         </p>
       )}
     </div>

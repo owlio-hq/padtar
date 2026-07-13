@@ -6,6 +6,11 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     ...options,
   })
   if (!res.ok) {
+    if (res.status === 423) {
+      // Remote access revoked mid-session — flip the whole app to the lock screen.
+      const { reportLocked } = await import('../system/GuardGate')
+      reportLocked()
+    }
     const text = await res.text().catch(() => '')
     throw new Error(`${res.status} ${res.statusText}: ${text}`)
   }

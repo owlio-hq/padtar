@@ -8,6 +8,7 @@ import { ThemeProvider } from './theme/ThemeContext'
 import { LabelsProvider } from './i18n/LabelsContext'
 import { AuthProvider } from './auth/AuthContext'
 import { LoginGate } from './auth/LoginGate'
+import { GuardGate } from './system/GuardGate'
 
 const queryClient = new QueryClient()
 
@@ -16,13 +17,15 @@ createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <LabelsProvider>
-          <AuthProvider>
-            <LoginGate>
-              <BrowserRouter>
-                <App />
-              </BrowserRouter>
-            </LoginGate>
-          </AuthProvider>
+          <GuardGate>
+            <AuthProvider>
+              <LoginGate>
+                <BrowserRouter>
+                  <App />
+                </BrowserRouter>
+              </LoginGate>
+            </AuthProvider>
+          </GuardGate>
         </LabelsProvider>
       </ThemeProvider>
     </QueryClientProvider>
