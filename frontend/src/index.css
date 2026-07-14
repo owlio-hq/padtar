@@ -262,10 +262,15 @@ input[type='number'] {
 
 /* top input cards (date / production / office expense / cost per unit) */
 .field-card {
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
-  padding: 11px 14px;
+  padding: 12px 15px;
+}
+.field-card .field-label {
+  font-size: 12.5px;
+  margin-bottom: 6px;
 }
 .field-card .field,
 .field-card .locked-field {
@@ -273,12 +278,20 @@ input[type='number'] {
   background: transparent;
   padding-left: 0;
   padding-right: 0;
-  height: 26px;
-  font-size: 14px;
-  font-weight: 500;
+  height: 30px;
+  font-size: 16px;
+  font-weight: 600;
 }
 .field-card .locked-field:hover {
   color: var(--accent);
+}
+/* lock pinned to the card's top-right corner — uniform across all locked cards */
+.field-card-lock {
+  position: absolute;
+  top: 11px;
+  right: 12px;
+  color: var(--text-muted);
+  opacity: 0.75;
 }
 
 /* big summary cards (grand total / production / cost per unit) */

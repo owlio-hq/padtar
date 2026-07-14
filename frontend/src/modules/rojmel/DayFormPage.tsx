@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, FileSpreadsheet, FileText, Printer, Pencil, Lock, ShoppingCart } from 'lucide-react'
+import {
+  Plus, Trash2, FileSpreadsheet, FileText, Printer, Pencil, Lock,
+  ShoppingCart, TrendingUp, TrendingDown, Calendar, type LucideIcon,
+} from 'lucide-react'
 import { rojmelApi } from './api'
 import { computeDay } from './calc'
 import type { DayInput, MoneyLine, SalesLine } from './types'
@@ -19,10 +22,14 @@ function todayIso(): string {
 
 function MoneyLinesEditor({
   title,
+  color,
+  icon: Icon,
   lines,
   onChange,
 }: {
   title: string
+  color: string
+  icon: LucideIcon
   lines: MoneyLine[]
   onChange: (lines: MoneyLine[]) => void
 }) {
@@ -40,10 +47,17 @@ function MoneyLinesEditor({
 
   return (
     <div className="flex-1">
-      <h3 className="mb-2 text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
-        {title}
-      </h3>
-      <div className="card overflow-hidden">
+      <div className="card category-card overflow-hidden" style={{ '--cat': color } as React.CSSProperties}>
+        <div className="category-strip">
+          <span className="category-title">
+            <Icon size={16} />
+            {title}
+          </span>
+          <button onClick={add} className="btn btn-cat btn-sm" style={{ borderWidth: 1, borderStyle: 'solid' }} title="Add a line">
+            <Plus size={13} />
+            Add line
+          </button>
+        </div>
         <table className="data-table entry-table">
           <colgroup>
             <col />
@@ -88,10 +102,6 @@ function MoneyLinesEditor({
           </tbody>
         </table>
       </div>
-      <button onClick={add} className="btn btn-outline btn-sm mt-2">
-        <Plus size={13} />
-        Add line
-      </button>
 
       <ConfirmDialog
         open={pendingRemove !== null}
@@ -258,9 +268,14 @@ export function DayFormPage() {
         </div>
       )}
 
-      <div className="mb-5 w-48">
-        <label className="field-label">{t('rojmel.date', 'Date')}</label>
-        <input type="date" className="field" value={date} onChange={(e) => setDate(e.target.value)} />
+      <div className="mb-5 grid grid-cols-4 gap-3">
+        <div className="field-card">
+          <label className="field-label flex items-center gap-1.5">
+            <Calendar size={13} />
+            {t('rojmel.date', 'Date')}
+          </label>
+          <input type="date" className="field" value={date} onChange={(e) => setDate(e.target.value)} />
+        </div>
       </div>
 
       <div className="card category-card overflow-hidden" style={{ '--cat': '#3b82f6' } as React.CSSProperties}>
@@ -315,18 +330,34 @@ export function DayFormPage() {
                 </td>
               </tr>
             ))}
+            {salesLines.length > 0 && (
+              <tr className="subtotal-row">
+                <td colSpan={3}>{t('rojmel.factory_sales', 'Factory Sales')}</td>
+                <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                  ₹{factorySales.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </td>
+                <td />
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
 
-      <div className="card mt-5 flex items-center justify-between px-4 py-2.5">
-        <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{t('rojmel.factory_sales', 'Factory Sales')}</span>
-        <span className="font-medium" style={{ color: 'var(--tint-total-text)' }}>₹{factorySales.toFixed(2)}</span>
-      </div>
-
       <div className="mt-5 flex flex-col gap-5 sm:flex-row">
-        <MoneyLinesEditor title={`${t('rojmel.income', 'Income')} (besides factory sales)`} lines={incomeLines} onChange={setIncomeLines} />
-        <MoneyLinesEditor title={t('rojmel.expense', 'Expense')} lines={expenseLines} onChange={setExpenseLines} />
+        <MoneyLinesEditor
+          title={`${t('rojmel.income', 'Income')} (besides factory sales)`}
+          color="#10b981"
+          icon={TrendingUp}
+          lines={incomeLines}
+          onChange={setIncomeLines}
+        />
+        <MoneyLinesEditor
+          title={t('rojmel.expense', 'Kharcho')}
+          color="#ef4444"
+          icon={TrendingDown}
+          lines={expenseLines}
+          onChange={setExpenseLines}
+        />
       </div>
 
       <NotesGrid value={notes || null} onChange={(v) => setNotes(v ?? '')} />

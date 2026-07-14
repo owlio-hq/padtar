@@ -11,6 +11,8 @@ interface AuthContextValue {
    * user cancelled or it was wrong. Restricted actions call this before running.
    */
   requireEdit: () => Promise<boolean>
+  /** Immediately end edit access, so the next restricted action re-prompts. */
+  lockEdit: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -77,8 +79,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     resolverRef.current = null
   }, [])
 
+  const lockEdit = useCallback(() => {
+    editUnlockedUntil.current = 0
+  }, [])
+
   return (
-    <AuthContext.Provider value={{ loggedIn, login, logout, requireEdit }}>
+    <AuthContext.Provider value={{ loggedIn, login, logout, requireEdit, lockEdit }}>
       {children}
       {askOpen && (
         <EditPasswordModal error={askError} busy={busy} onSubmit={submitEdit} onCancel={cancelEdit} />

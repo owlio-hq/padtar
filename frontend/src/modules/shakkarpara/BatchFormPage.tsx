@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -45,13 +45,40 @@ export function BatchFormPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { t } = useLabels()
-  const { requireEdit } = useAuth()
+  const { requireEdit, lockEdit } = useAuth()
+  const topRowRef = useRef<HTMLDivElement>(null)
 
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [pendingRemove, setPendingRemove] = useState<number | null>(null)
   const [editing, setEditing] = useState<{ index: number; isNew: boolean } | null>(null)
   const [unlockProd, setUnlockProd] = useState(false)
   const [unlockExtra, setUnlockExtra] = useState(false)
+
+  // Re-lock the Production/Unit/Office fields and clear edit access, so the next
+  // edit asks for the password again.
+  const relockTop = useCallback(() => {
+    setUnlockProd(false)
+    setUnlockExtra(false)
+    lockEdit()
+  }, [lockEdit])
+
+  // While any of these fields is unlocked, clicking/tapping anywhere outside the
+  // row (or pressing Enter) re-locks it immediately.
+  useEffect(() => {
+    if (!unlockProd && !unlockExtra) return
+    function onDown(e: PointerEvent) {
+      if (topRowRef.current && !topRowRef.current.contains(e.target as Node)) relockTop()
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Enter') relockTop()
+    }
+    document.addEventListener('pointerdown', onDown, true)
+    document.addEventListener('keydown', onKey, true)
+    return () => {
+      document.removeEventListener('pointerdown', onDown, true)
+      document.removeEventListener('keydown', onKey, true)
+    }
+  }, [unlockProd, unlockExtra, relockTop])
 
   const { data: existing } = useQuery({
     queryKey: ['shakkarpara-batch', batchId],
@@ -224,19 +251,19 @@ export function BatchFormPage() {
         }
       />
 
-      <div className="mb-5 grid grid-cols-4 gap-3">
+      <div className="mb-5 grid grid-cols-4 gap-3" ref={topRowRef}>
         <div className="field-card">
           <label className="field-label flex items-center gap-1.5">
-            <Calendar size={12} />
+            <Calendar size={13} />
             {t('shakkarpara.date', 'Date')}
           </label>
           <input type="date" className="field" value={date} onChange={(e) => setDate(e.target.value)} />
         </div>
         <div className="field-card">
+          {!unlockProd && <Lock size={12} className="field-card-lock" />}
           <label className="field-label flex items-center gap-1.5">
-            <Factory size={12} />
+            <Factory size={13} />
             {t('shakkarpara.production', 'Production')}
-            {!unlockProd && <Lock size={11} style={{ color: 'var(--text-muted)' }} />}
           </label>
           {unlockProd ? (
             <NumberField min={0} value={productionQty} onChange={setProductionQty} />
@@ -247,10 +274,10 @@ export function BatchFormPage() {
           )}
         </div>
         <div className="field-card">
+          {!unlockProd && <Lock size={12} className="field-card-lock" />}
           <label className="field-label flex items-center gap-1.5">
-            <Ruler size={12} />
+            <Ruler size={13} />
             Unit
-            {!unlockProd && <Lock size={11} style={{ color: 'var(--text-muted)' }} />}
           </label>
           {unlockProd ? (
             <input className="field" value={productionUnit} onChange={(e) => setProductionUnit(e.target.value)} />
@@ -261,10 +288,10 @@ export function BatchFormPage() {
           )}
         </div>
         <div className="field-card">
+          {!unlockExtra && <Lock size={12} className="field-card-lock" />}
           <label className="field-label flex items-center gap-1.5" title="Office / overhead added on top of cost-per-unit">
-            <Receipt size={12} />
+            <Receipt size={13} />
             Office Expenses (₹)
-            {!unlockExtra && <Lock size={11} style={{ color: 'var(--text-muted)' }} />}
           </label>
           {unlockExtra ? (
             <NumberField min={0} value={extraPerUnit} onChange={setExtraPerUnit} />
