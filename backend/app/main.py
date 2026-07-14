@@ -1,3 +1,7 @@
+import os
+import threading
+import webbrowser
+
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -33,6 +37,13 @@ def on_startup():
     # Remote flag first, before anything else runs (offline -> date fallback).
     guard.check_access()
     logger.info("%s backend started (v%s)", APP_NAME, app_version())
+
+    # Packaged mode: the hidden launcher sets this so the app opens the client's
+    # browser itself once the server is up (no visible terminal gymnastics).
+    # Only on first start — the update-restart loop clears it, so applying an
+    # update doesn't pop a second tab.
+    if os.environ.get("PADTAR_OPEN_BROWSER") == "1" and FRONTEND_DIST_DIR.exists():
+        threading.Timer(0.6, webbrowser.open, args=("http://127.0.0.1:8123/",)).start()
 
 
 @app.middleware("http")

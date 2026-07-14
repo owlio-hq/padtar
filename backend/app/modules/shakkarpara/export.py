@@ -153,7 +153,8 @@ def build_pdf(batches: list[BatchOut]) -> bytes:
     for batch in sorted(batches, key=lambda b: b.date):
         story.append(Paragraph(f"Batch — {batch.date.strftime('%d %b %Y')}", SECTION_STYLE))
 
-        rows = [["Ingredient", "Rate (₹)", "Usage", "Unit", "Total (₹)"]]
+        # PDF uses Helvetica, which has no ₹ glyph (renders as a black box) — use "Rs."
+        rows = [["Ingredient", "Rate (Rs.)", "Usage", "Unit", "Total (Rs.)"]]
         for ing in batch.ingredients:
             rows.append([ing.name, f"{ing.rate:g}", f"{ing.usage:.2f}", ing.unit, f"{ing.total:.2f}"])
         padtar_label = "Padtar"

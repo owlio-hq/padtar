@@ -134,7 +134,8 @@ def build_days_pdf(days: list[DayOut]) -> bytes:
     for day in sorted(days, key=lambda d: d.date):
         story.append(Paragraph(f"Day — {day.date.strftime('%d %b %Y')}", SECTION_STYLE))
 
-        rows = [["Product", "Rate (₹)", "Pic", "Total (₹)"]]
+        # PDF uses Helvetica, which has no ₹ glyph (renders as a black box) — use "Rs."
+        rows = [["Product", "Rate (Rs.)", "Pic", "Total (Rs.)"]]
         for s in day.sales_lines:
             rows.append([s.product, f"{s.rate:g}", f"{s.qty:g}", f"{s.total:.2f}"])
         rows.append(["Factory Sales", "", "", f"{day.factory_sales:.2f}"])
