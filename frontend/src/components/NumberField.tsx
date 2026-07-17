@@ -10,6 +10,13 @@ interface NumberFieldProps {
   ariaLabel?: string
   /** Clamp typed values below this to it (e.g. 0 to block negatives). */
   min?: number
+  /**
+   * Marks this as a day-to-day entry box, so pressing Enter jumps to the next
+   * one (see the Enter handler on the batch/day forms).
+   */
+  entryFlow?: boolean
+  /** Focus + select on mount (used by popups so the value is typeable at once). */
+  autoFocus?: boolean
 }
 
 /**
@@ -29,6 +36,8 @@ export function NumberField({
   placeholder = '0',
   ariaLabel,
   min,
+  entryFlow,
+  autoFocus,
 }: NumberFieldProps) {
   const [text, setText] = useState(value === 0 ? '' : String(value))
 
@@ -54,6 +63,8 @@ export function NumberField({
       className={className}
       placeholder={placeholder}
       aria-label={ariaLabel}
+      data-entry-flow={entryFlow ? '' : undefined}
+      autoFocus={autoFocus}
       value={text}
       onFocus={(e) => e.target.select()}
       onBlur={() => {

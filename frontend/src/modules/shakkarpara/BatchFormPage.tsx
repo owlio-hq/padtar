@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, Trash2, FileSpreadsheet, FileText, Printer, Pencil, Lock,
-  Wheat, Flame, Fuel, Box, Users, Calendar, Factory, Ruler, Receipt, type LucideIcon,
+  Wheat, Flame, Fuel, Box, Users, Calendar, Factory, Receipt, Sigma, Coins, type LucideIcon,
 } from 'lucide-react'
 import { shakkarparaApi } from './api'
 import { computeBatch } from './calc'
@@ -14,8 +14,11 @@ import { useAuth } from '../../auth/AuthContext'
 import { useLabels } from '../../i18n/LabelsContext'
 import { PageHeader } from '../../components/PageHeader'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { FieldEditDialog } from '../../components/FieldEditDialog'
 import { NumberField } from '../../components/NumberField'
 import { NotesGrid } from '../../components/NotesGrid'
+import { useEntryFlow } from '../../components/useEntryFlow'
+import { useUnsavedGuard } from '../../components/useUnsavedGuard'
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
@@ -47,38 +50,15 @@ export function BatchFormPage() {
   const { t } = useLabels()
   const { requireEdit, lockEdit } = useAuth()
   const topRowRef = useRef<HTMLDivElement>(null)
+  const entryFlow = useEntryFlow<HTMLDivElement>()
 
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [pendingRemove, setPendingRemove] = useState<number | null>(null)
   const [editing, setEditing] = useState<{ index: number; isNew: boolean } | null>(null)
-  const [unlockProd, setUnlockProd] = useState(false)
-  const [unlockExtra, setUnlockExtra] = useState(false)
-
-  // Re-lock the Production/Unit/Office fields and clear edit access, so the next
-  // edit asks for the password again.
-  const relockTop = useCallback(() => {
-    setUnlockProd(false)
-    setUnlockExtra(false)
-    lockEdit()
-  }, [lockEdit])
-
-  // While any of these fields is unlocked, clicking/tapping anywhere outside the
-  // row (or pressing Enter) re-locks it immediately.
-  useEffect(() => {
-    if (!unlockProd && !unlockExtra) return
-    function onDown(e: PointerEvent) {
-      if (topRowRef.current && !topRowRef.current.contains(e.target as Node)) relockTop()
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Enter') relockTop()
-    }
-    document.addEventListener('pointerdown', onDown, true)
-    document.addEventListener('keydown', onKey, true)
-    return () => {
-      document.removeEventListener('pointerdown', onDown, true)
-      document.removeEventListener('keydown', onKey, true)
-    }
-  }, [unlockProd, unlockExtra, relockTop])
+  // Which locked top-row card is currently being edited in a popup (null = none).
+  // The popup is the whole edit session: it opens right after the password and
+  // closes on save/cancel, so these fields are never left sitting unlocked.
+  const [fieldEdit, setFieldEdit] = useState<'prod' | 'extra' | null>(null)
 
   const { data: existing } = useQuery({
     queryKey: ['shakkarpara-batch', batchId],
@@ -121,12 +101,17 @@ export function BatchFormPage() {
 
   const { lines, total, padtar } = computeBatch(ingredients, oilSit, productionQty, extraPerUnit)
 
+  // Latest values, reachable from the mutation callback below.
+  const dirtyKeyRef = useRef('')
+  const markSavedRef = useRef<(snapshot?: string) => void>(() => {})
+
   const saveMutation = useMutation({
     mutationFn: (payload: BatchInput) =>
       isNew ? shakkarparaApi.create(payload) : shakkarparaApi.update(batchId as number, payload),
     onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ['shakkarpara-batches'] })
       queryClient.invalidateQueries({ queryKey: ['shakkarpara-batch', saved.id] })
+      markSavedRef.current(dirtyKeyRef.current) // sheet is clean again
       navigate(`/shakkarpara/${saved.id}`)
     },
   })
@@ -165,10 +150,16 @@ export function BatchFormPage() {
     if (await requireEdit()) setConfirmDelete(true)
   }
 
-  async function unlockField(which: 'prod' | 'extra') {
+  // Password first, then the popup opens immediately with the value ready to type.
+  async function openFieldEdit(which: 'prod' | 'extra') {
     if (!(await requireEdit())) return
-    if (which === 'prod') setUnlockProd(true)
-    else setUnlockExtra(true)
+    setFieldEdit(which)
+  }
+
+  // Close the popup and drop edit access, so the next change asks again.
+  function closeFieldEdit() {
+    setFieldEdit(null)
+    lockEdit()
   }
 
   // Apply an ingredient edit; optionally push it to the defaults table.
@@ -182,6 +173,15 @@ export function BatchFormPage() {
     const isOil = ingredients[index]?.is_oil_vaprayel ?? false
     updateIngredient(index, patch)
 
+    // Oil Vaprayel is bought at the same rate as the Oil row, so mirror the new
+    // rate into it. Only on an explicit edit — never on load, or opening an old
+    // batch whose two oil rates differed would silently change its total.
+    if (!isOil && category === 'Cooking/Frying') {
+      setIngredients((rows) =>
+        rows.map((row) => (row.is_oil_vaprayel && row.category === category ? { ...row, rate: patch.rate } : row)),
+      )
+    }
+
     if (mode === 'default') {
       const current = await shakkarparaApi.getDefaults()
       const next = current.map((d) => ({ ...d }))
@@ -193,14 +193,19 @@ export function BatchFormPage() {
       } else {
         next.push({ name: patch.name, category, rate: patch.rate, usage: 0, unit: patch.unit, is_oil_vaprayel: isOil })
       }
+      // keep the Oil Vaprayel default's rate tied to the Oil default's rate too
+      if (!isOil && category === 'Cooking/Frying') {
+        const autoOil = next.find((d) => d.is_oil_vaprayel && d.category === category)
+        if (autoOil) autoOil.rate = patch.rate
+      }
       await shakkarparaApi.setDefaults(next)
       queryClient.invalidateQueries({ queryKey: ['shakkarpara-default-ingredients'] })
     }
     setEditing(null)
   }
 
-  function handleSave() {
-    saveMutation.mutate({
+  function buildPayload(): BatchInput {
+    return {
       date,
       production_qty: productionQty,
       production_unit: productionUnit,
@@ -208,8 +213,35 @@ export function BatchFormPage() {
       notes: notes || null,
       ingredients,
       oil_sit: oilSit,
-    })
+    }
   }
+
+  function handleSave() {
+    saveMutation.mutate(buildPayload())
+  }
+
+  // What the worker actually typed — server-added fields (id, total) are left
+  // out, otherwise a refetch after saving would look like a fresh edit.
+  const dirtyKey = JSON.stringify({
+    date,
+    productionQty,
+    productionUnit,
+    extraPerUnit,
+    notes,
+    oilSit,
+    ingredients: ingredients.map((i) => [i.name, i.category, i.rate, i.usage, i.unit, i.is_oil_vaprayel]),
+  })
+  dirtyKeyRef.current = dirtyKey
+
+  // Guard the sheet: leaving (or an app update) must not silently drop edits.
+  const guard = useUnsavedGuard({
+    payload: dirtyKey,
+    ready: isNew ? ingredients.length > 0 : !!existing,
+    save: async () => {
+      await saveMutation.mutateAsync(buildPayload())
+    },
+  })
+  markSavedRef.current = guard.markSaved
 
   const oilSitNet = oilSit.nava_dabba + oilSit.juna_dabba + oilSit.toppa - oilSit.parat_malela
 
@@ -221,7 +253,7 @@ export function BatchFormPage() {
   const catSubtotal = (rows: { idx: number }[]) => rows.reduce((s, r) => s + (lines[r.idx]?.total ?? 0), 0)
 
   return (
-    <div className="mx-auto" style={{ maxWidth: 940 }}>
+    <div className="mx-auto" style={{ maxWidth: 940 }} ref={entryFlow.containerRef} onKeyDown={entryFlow.onKeyDown}>
       <PageHeader
         title={isNew ? 'New batch' : `Batch – ${date}`}
         subtitle="Batch costing"
@@ -251,55 +283,57 @@ export function BatchFormPage() {
         }
       />
 
-      <div className="mb-5 grid grid-cols-4 gap-3" ref={topRowRef}>
-        <div className="field-card">
+      {/* Five cards, coloured by meaning: date = info, production = quantity made,
+          office expenses = a cost, grand total = the sum, padtar = the headline. */}
+      <div className="mb-5 grid grid-cols-5 gap-3" ref={topRowRef}>
+        <div className="field-card" style={{ '--cat': '#94a3b8' } as React.CSSProperties}>
           <label className="field-label flex items-center gap-1.5">
             <Calendar size={13} />
             {t('shakkarpara.date', 'Date')}
           </label>
           <input type="date" className="field" value={date} onChange={(e) => setDate(e.target.value)} />
         </div>
-        <div className="field-card">
-          {!unlockProd && <Lock size={12} className="field-card-lock" />}
+
+        <div className="field-card" style={{ '--cat': '#3b82f6' } as React.CSSProperties}>
+          <Lock size={12} className="field-card-lock" />
           <label className="field-label flex items-center gap-1.5">
             <Factory size={13} />
             {t('shakkarpara.production', 'Production')}
           </label>
-          {unlockProd ? (
-            <NumberField min={0} value={productionQty} onChange={setProductionQty} />
-          ) : (
-            <button className="field locked-field" onClick={() => unlockField('prod')} title="Click to edit (password needed)">
-              {productionQty || 0}
-            </button>
-          )}
+          <button className="field locked-field" onClick={() => openFieldEdit('prod')} title="Click to edit (password needed)">
+            {productionQty || 0} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>{productionUnit}</span>
+          </button>
         </div>
-        <div className="field-card">
-          {!unlockProd && <Lock size={12} className="field-card-lock" />}
-          <label className="field-label flex items-center gap-1.5">
-            <Ruler size={13} />
-            Unit
-          </label>
-          {unlockProd ? (
-            <input className="field" value={productionUnit} onChange={(e) => setProductionUnit(e.target.value)} />
-          ) : (
-            <button className="field locked-field" onClick={() => unlockField('prod')} title="Click to edit (password needed)">
-              {productionUnit}
-            </button>
-          )}
-        </div>
-        <div className="field-card">
-          {!unlockExtra && <Lock size={12} className="field-card-lock" />}
+
+        <div className="field-card" style={{ '--cat': '#f59e0b' } as React.CSSProperties}>
+          <Lock size={12} className="field-card-lock" />
           <label className="field-label flex items-center gap-1.5" title="Office / overhead added on top of cost-per-unit">
             <Receipt size={13} />
             Office Expenses (₹)
           </label>
-          {unlockExtra ? (
-            <NumberField min={0} value={extraPerUnit} onChange={setExtraPerUnit} />
-          ) : (
-            <button className="field locked-field" onClick={() => unlockField('extra')} title="Click to edit (password needed)">
-              {extraPerUnit || 0}
-            </button>
-          )}
+          <button className="field locked-field" onClick={() => openFieldEdit('extra')} title="Click to edit (password needed)">
+            {extraPerUnit || 0}
+          </button>
+        </div>
+
+        <div className="field-card" style={{ '--cat': '#8b5cf6' } as React.CSSProperties}>
+          <label className="field-label flex items-center gap-1.5">
+            <Sigma size={13} />
+            Grand Total (₹)
+          </label>
+          <div className="field readonly-value">
+            {total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+        </div>
+
+        <div className="field-card" style={{ '--cat': '#10b981' } as React.CSSProperties}>
+          <label className="field-label flex items-center gap-1.5">
+            <Coins size={13} />
+            {t('shakkarpara.padtar', 'Padtar')} (₹)
+          </label>
+          <div className="field readonly-value" style={{ color: 'var(--tint-total-text)' }}>
+            {padtar !== null ? padtar.toFixed(2) : '—'}
+          </div>
         </div>
       </div>
 
@@ -347,7 +381,9 @@ export function BatchFormPage() {
                 </tr>
               )}
               {rows.map(({ ing, idx }) => (
-                <tr key={idx} className="reveal-row">
+                // Oil Vaprayel is fully automatic: rate follows the Oil row, usage comes
+                // from the Oil Sheet — so the whole row is read-only and tinted.
+                <tr key={idx} className={ing.is_oil_vaprayel ? 'auto-row' : 'reveal-row'}>
                   <td style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {ing.name || <span style={{ color: 'var(--text-muted)' }}>—</span>}
                   </td>
@@ -356,21 +392,32 @@ export function BatchFormPage() {
                   </td>
                   <td className="col-editable">
                     {ing.is_oil_vaprayel ? (
-                      <span className="auto-box" title="Auto-calculated from Oil Sheet">
+                      <span className="auto-box" title="Automatic — Net Vaprash from the Oil Sheet below">
                         {lines[idx]?.usage.toFixed(2)} (auto)
                       </span>
                     ) : (
-                      <NumberField min={0} className="field-inline" value={ing.usage} onChange={(v) => updateIngredient(idx, { usage: v })} ariaLabel="Vaprash" />
+                      <NumberField
+                        min={0}
+                        className="field-inline"
+                        value={ing.usage}
+                        onChange={(v) => updateIngredient(idx, { usage: v })}
+                        ariaLabel="Vaprash"
+                        entryFlow
+                      />
                     )}
                   </td>
                   <td className="col-total">₹{lines[idx]?.total.toFixed(2)}</td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <button className="icon-btn reveal-target" onClick={() => openEdit(idx)} aria-label="Edit ingredient" title="Edit rate / unit / name (password)">
-                      <Pencil size={14} />
-                    </button>
-                    <button className="icon-btn icon-btn-danger reveal-target" onClick={() => requestRemove(idx)} aria-label="Remove ingredient" title="Remove (password)">
-                      <Trash2 size={14} />
-                    </button>
+                    {!ing.is_oil_vaprayel && (
+                      <>
+                        <button className="icon-btn reveal-target" onClick={() => openEdit(idx)} aria-label="Edit ingredient" title="Edit rate / unit / name (password)">
+                          <Pencil size={14} />
+                        </button>
+                        <button className="icon-btn icon-btn-danger reveal-target" onClick={() => requestRemove(idx)} aria-label="Remove ingredient" title="Remove (password)">
+                          <Trash2 size={14} />
+                        </button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -424,30 +471,13 @@ export function BatchFormPage() {
 
       <NotesGrid value={notes || null} onChange={(v) => setNotes(v ?? '')} />
 
-      <div className="mt-5 grid grid-cols-3 gap-3">
-        <div className="summary-card">
-          <div className="summary-label">Grand Total</div>
-          <div className="summary-value">₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-        </div>
-        <div className="summary-card">
-          <div className="summary-label">{t('shakkarpara.production', 'Production')}</div>
-          <div className="summary-value">
-            {productionQty || 0} <span style={{ fontSize: 15, color: 'var(--text-muted)' }}>{productionUnit}</span>
-          </div>
-        </div>
-        <div className="summary-card">
-          <div className="summary-label">{t('shakkarpara.padtar', 'Cost / unit')}</div>
-          <div className="summary-value" style={{ color: 'var(--tint-padtar-text)' }}>
-            {padtar !== null ? `₹${padtar.toFixed(2)}` : '—'}
-          </div>
-        </div>
-      </div>
-
       <div className="mt-5 flex justify-end">
         <button onClick={handleSave} disabled={saveMutation.isPending} className="btn btn-primary">
           {saveMutation.isPending ? 'Saving…' : 'Save batch'}
         </button>
       </div>
+
+      {guard.dialog}
 
       {editing && (
         <IngredientEditDialog
@@ -461,6 +491,34 @@ export function BatchFormPage() {
             }
             setEditing(null)
           }}
+        />
+      )}
+
+      {fieldEdit === 'prod' && (
+        <FieldEditDialog
+          title="Edit production"
+          label={t('shakkarpara.production', 'Production')}
+          value={productionQty}
+          unit={productionUnit}
+          onSave={(v, u) => {
+            setProductionQty(v)
+            setProductionUnit(u?.trim() || 'kg')
+            closeFieldEdit()
+          }}
+          onCancel={closeFieldEdit}
+        />
+      )}
+
+      {fieldEdit === 'extra' && (
+        <FieldEditDialog
+          title="Edit office expenses"
+          label="Office Expenses (₹)"
+          value={extraPerUnit}
+          onSave={(v) => {
+            setExtraPerUnit(v)
+            closeFieldEdit()
+          }}
+          onCancel={closeFieldEdit}
         />
       )}
 

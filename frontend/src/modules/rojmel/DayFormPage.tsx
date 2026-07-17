@@ -15,6 +15,8 @@ import { PageHeader } from '../../components/PageHeader'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { NumberField } from '../../components/NumberField'
 import { NotesGrid } from '../../components/NotesGrid'
+import { useEntryFlow } from '../../components/useEntryFlow'
+import { useUnsavedGuard } from '../../components/useUnsavedGuard'
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
@@ -126,6 +128,7 @@ export function DayFormPage() {
   const queryClient = useQueryClient()
   const { t } = useLabels()
   const { requireEdit } = useAuth()
+  const entryFlow = useEntryFlow<HTMLDivElement>()
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [pendingRemoveSales, setPendingRemoveSales] = useState<number | null>(null)
   const [editing, setEditing] = useState<{ index: number; isNew: boolean } | null>(null)
@@ -165,12 +168,17 @@ export function DayFormPage() {
 
   const { lines, factorySales, totalIncome, totalExpense, cashOnHand } = computeDay(salesLines, incomeLines, expenseLines)
 
+  // Latest values, reachable from the mutation callback below.
+  const dirtyKeyRef = useRef('')
+  const markSavedRef = useRef<(snapshot?: string) => void>(() => {})
+
   const saveMutation = useMutation({
     mutationFn: (payload: DayInput) => (isNew ? rojmelApi.create(payload) : rojmelApi.update(dayId as number, payload)),
     onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ['rojmel-days'] })
       queryClient.invalidateQueries({ queryKey: ['rojmel-day', saved.id] })
       queryClient.invalidateQueries({ queryKey: ['rojmel-history', saved.id] })
+      markSavedRef.current(dirtyKeyRef.current) // sheet is clean again
       navigate(`/rojmel/${saved.id}`)
     },
   })
@@ -222,12 +230,37 @@ export function DayFormPage() {
     setEditing(null)
   }
 
-  function handleSave() {
-    saveMutation.mutate({ date, notes: notes || null, sales_lines: salesLines, income_lines: incomeLines, expense_lines: expenseLines })
+  function buildPayload(): DayInput {
+    return { date, notes: notes || null, sales_lines: salesLines, income_lines: incomeLines, expense_lines: expenseLines }
   }
 
+  function handleSave() {
+    saveMutation.mutate(buildPayload())
+  }
+
+  // What the worker actually typed — server-added fields (id, total) are left
+  // out, otherwise a refetch after saving would look like a fresh edit.
+  const dirtyKey = JSON.stringify({
+    date,
+    notes,
+    sales: salesLines.map((s) => [s.product, s.rate, s.qty]),
+    income: incomeLines.map((m) => [m.description, m.amount, m.note]),
+    expense: expenseLines.map((m) => [m.description, m.amount, m.note]),
+  })
+  dirtyKeyRef.current = dirtyKey
+
+  // Guard the sheet: leaving (or an app update) must not silently drop edits.
+  const guard = useUnsavedGuard({
+    payload: dirtyKey,
+    ready: isNew ? salesLines.length > 0 : !!existing,
+    save: async () => {
+      await saveMutation.mutateAsync(buildPayload())
+    },
+  })
+  markSavedRef.current = guard.markSaved
+
   return (
-    <div className="mx-auto" style={{ maxWidth: 940 }}>
+    <div className="mx-auto" style={{ maxWidth: 940 }} ref={entryFlow.containerRef} onKeyDown={entryFlow.onKeyDown}>
       <PageHeader
         title={isNew ? 'New day' : `Day — ${date}`}
         subtitle="Daily sales and cash"
@@ -317,7 +350,7 @@ export function DayFormPage() {
                   {s.rate || 0}
                 </td>
                 <td className="col-editable">
-                  <NumberField className="field-inline" value={s.qty} onChange={(v) => updateSalesLine(i, { qty: v })} ariaLabel="Pieces" />
+                  <NumberField className="field-inline" value={s.qty} onChange={(v) => updateSalesLine(i, { qty: v })} ariaLabel="Pieces" entryFlow />
                 </td>
                 <td className="col-total">₹{lines[i]?.total.toFixed(2)}</td>
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -378,6 +411,8 @@ export function DayFormPage() {
           {saveMutation.isPending ? 'Saving…' : 'Save day'}
         </button>
       </div>
+
+      {guard.dialog}
 
       {editing && (
         <ProductEditDialog

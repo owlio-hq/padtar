@@ -16,6 +16,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "backend"))
 
+from sqlalchemy import text  # noqa: E402
+
 from app.db import SessionLocal, init_db  # noqa: E402
 from app.modules.shakkarpara.models import Batch  # noqa: E402
 from app.modules.rojmel.models import RojmelDay  # noqa: E402
@@ -71,9 +73,41 @@ def main() -> None:
                 print(f"   {b.date}  ({len(b.ingredients)} items, categories: {sorted(cats)})")
 
         print(f"Rojmel days kept: {db.query(RojmelDay).count()}")
+
+        purged = purge_orphans(db)
+        print(f"Orphaned child rows purged: {purged}")
+        db.execute(text("VACUUM"))
+        db.commit()
     finally:
         db.close()
     print("\nDone. DB ready for handoff.")
+
+
+# Child tables that must never outlive their parent. Deleting a parent through
+# the ORM cascades — but a raw "DELETE FROM ..." does NOT, because SQLite only
+# enforces foreign keys on connections that switch them on. That is exactly how
+# a pile of invisible orphan rows once ended up in a shipped database, so we
+# purge defensively no matter how the rows were removed.
+_CHILD_TABLES = [
+    ("shakkarpara_batch_ingredients", "batch_id", "shakkarpara_batches"),
+    ("shakkarpara_oil_sit", "batch_id", "shakkarpara_batches"),
+    ("shakkarpara_batch_history", "batch_id", "shakkarpara_batches"),
+    ("rojmel_sales_lines", "day_id", "rojmel_days"),
+    ("rojmel_income_lines", "day_id", "rojmel_days"),
+    ("rojmel_expense_lines", "day_id", "rojmel_days"),
+    ("rojmel_day_history", "day_id", "rojmel_days"),
+]
+
+
+def purge_orphans(db) -> int:
+    """Delete child rows whose parent is gone. Returns how many were removed."""
+    total = 0
+    for child, fk, parent in _CHILD_TABLES:
+        # table/column names are fixed constants above — no user input here
+        result = db.execute(text(f"DELETE FROM {child} WHERE {fk} NOT IN (SELECT id FROM {parent})"))
+        total += result.rowcount or 0
+    db.commit()
+    return total
 
 
 if __name__ == "__main__":

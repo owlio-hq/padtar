@@ -352,27 +352,18 @@ function UpdateSettings() {
     setBusy(true)
     setStatus(null)
     try {
+      // Checking never installs anything — if an update exists, the notice in the
+      // sidebar is where they choose to install it (so open work is saved first).
       const r = await api.post<{ status: string; version?: string }>('/system/check-update')
-      if (r.status === 'updated') {
-        setStatus('Update installed — restarting the app…')
-        // wait for the server to come back on the new code, then reload
-        const poll = () => {
-          fetch('/api/health')
-            .then((res) => (res.ok ? window.location.reload() : setTimeout(poll, 2000)))
-            .catch(() => setTimeout(poll, 2000))
-        }
-        setTimeout(poll, 3000)
-        return
-      }
       setStatus(
-        r.status === 'up_to_date'
-          ? `You have the latest version (v${r.version ?? version}).`
-          : r.status === 'offline'
-            ? 'No internet — could not check for updates.'
-            : r.status === 'dev'
-              ? 'Updates only apply in the installed app.'
-              : r.status === 'error'
-                ? 'Update failed — nothing was changed. Try again later.'
+        r.status === 'available'
+          ? `Version ${r.version} is available — use the “Update available” button in the sidebar to install it.`
+          : r.status === 'up_to_date'
+            ? `You have the latest version (v${r.version ?? version}).`
+            : r.status === 'offline'
+              ? 'No internet — could not check for updates.'
+              : r.status === 'dev'
+                ? 'Updates only apply in the installed app.'
                 : 'Access check failed.',
       )
     } catch {

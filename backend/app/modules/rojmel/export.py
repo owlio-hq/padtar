@@ -15,6 +15,7 @@ from reportlab.platypus import Paragraph, Table, TableStyle
 
 from app.core.export_style import (
     BORDER_COLOR,
+    fit_to_one_page,
     HEADER_FILL,
     NEGATIVE_FILL,
     NEGATIVE_TEXT,
@@ -121,6 +122,9 @@ def build_days_excel(days: list[DayOut]) -> bytes:
             for cell in notes_ws[notes_ws.max_row]:
                 cell.alignment = Alignment(wrap_text=True, vertical="top")
 
+    fit_to_one_page(ws)
+    fit_to_one_page(notes_ws)
+
     buffer = BytesIO()
     wb.save(buffer)
     return buffer.getvalue()
@@ -154,13 +158,14 @@ def build_days_pdf(days: list[DayOut]) -> bytes:
                     ("TEXTCOLOR", (0, n + 1), (-1, n + 1), colors.HexColor(f"#{SUBTOTAL_TEXT}")),
                     ("FONTNAME", (0, n + 1), (-1, n + 1), "Helvetica-Bold"),
                     ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor(f"#{BORDER_COLOR}")),
-                    ("TOPPADDING", (0, 0), (-1, -1), 4),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8),
+                    ("TOPPADDING", (0, 0), (-1, -1), 2.5),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
                 ]
             )
         )
         story.append(table)
-        story.append(spacer(0.3))
+        story.append(spacer(0.2))
 
         money_rows = [["Type", "Description", "Amount", "Note"]]
         for m in day.income_lines:
@@ -175,13 +180,14 @@ def build_days_pdf(days: list[DayOut]) -> bytes:
                         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(f"#{HEADER_FILL}")),
                         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor(f"#{BORDER_COLOR}")),
-                        ("TOPPADDING", (0, 0), (-1, -1), 4),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                        ("FONTSIZE", (0, 0), (-1, -1), 8),
+                        ("TOPPADDING", (0, 0), (-1, -1), 2.5),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
                     ]
                 )
             )
             story.append(money_table)
-            story.append(spacer(0.3))
+            story.append(spacer(0.2))
 
         summary = Table(
             [["Total Income", f"{day.total_income:.2f}", "Total Expense", f"{day.total_expense:.2f}", "Cash on Hand", f"{day.cash_on_hand:.2f}"]],
@@ -198,13 +204,14 @@ def build_days_pdf(days: list[DayOut]) -> bytes:
                     ("TEXTCOLOR", (4, 0), (5, 0), colors.HexColor(f"#{PADTAR_TEXT}")),
                     ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                     ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor(f"#{BORDER_COLOR}")),
-                    ("TOPPADDING", (0, 0), (-1, -1), 4),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8),
+                    ("TOPPADDING", (0, 0), (-1, -1), 2.5),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
                 ]
             )
         )
         story.append(summary)
-        story.append(spacer(0.8))
+        story.append(spacer(0.4))
 
     note_entries = [(d.date.strftime("%d %b %Y"), parse_notes(d.notes)) for d in sorted(days, key=lambda d: d.date) if d.notes]
     story.extend(notes_section(note_entries))
@@ -239,6 +246,8 @@ def build_stock_excel(rows: list[StockRowOut], year: int, month: int) -> bytes:
     for idx, width in enumerate([20, 12, 16, 16, 14], start=1):
         ws.column_dimensions[get_column_letter(idx)].width = width
 
+    fit_to_one_page(ws)
+
     buffer = BytesIO()
     wb.save(buffer)
     return buffer.getvalue()
@@ -258,8 +267,9 @@ def build_stock_pdf(rows: list[StockRowOut], year: int, month: int) -> bytes:
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(f"#{HEADER_FILL}")),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor(f"#{BORDER_COLOR}")),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 2.5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
     ]
     for i, row in enumerate(rows, start=1):
         fill = NEGATIVE_FILL if row.net_pic < 0 else PADTAR_FILL

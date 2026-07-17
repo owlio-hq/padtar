@@ -18,6 +18,7 @@ from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
 
 from app.core.export_style import (
     BORDER_COLOR,
+    fit_to_one_page,
     HEADER_FILL,
     OIL_SIT_FILL,
     OIL_SIT_TEXT,
@@ -140,6 +141,9 @@ def build_excel(batches: list[BatchOut]) -> bytes:
             for cell in notes_ws[notes_ws.max_row]:
                 cell.alignment = Alignment(wrap_text=True, vertical="top")
 
+    fit_to_one_page(ws)
+    fit_to_one_page(notes_ws)
+
     buffer = BytesIO()
     wb.save(buffer)
     return buffer.getvalue()
@@ -179,16 +183,17 @@ def build_pdf(batches: list[BatchOut]) -> bytes:
             ("TEXTCOLOR", (0, n + 3), (-1, n + 3), colors.HexColor(f"#{PADTAR_TEXT}")),
             ("FONTNAME", (0, n + 3), (-1, n + 3), "Helvetica-Bold"),
             ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor(f"#{BORDER_COLOR}")),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING", (0, 0), (-1, -1), 2.5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
         ]
         table.setStyle(TableStyle(style))
         story.append(table)
 
         # Oil-sit sub-table (below the main ingredient table).
         if batch.oil_sit is not None:
-            story.append(spacer(0.2))
+            story.append(spacer(0.15))
             oil = batch.oil_sit
             oil_rows = [
                 ["Oil Sheet", "", "", "", ""],
@@ -213,13 +218,14 @@ def build_pdf(batches: list[BatchOut]) -> bytes:
                 ("TEXTCOLOR", (4, 2), (4, 2), colors.HexColor(f"#{OIL_SIT_TEXT}")),
                 ("FONTNAME", (4, 2), (4, 2), "Helvetica-Bold"),
                 ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor(f"#{BORDER_COLOR}")),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("TOPPADDING", (0, 0), (-1, -1), 3),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
             ]))
             story.append(oil_table)
 
-        story.append(spacer(0.6))
+        story.append(spacer(0.35))
 
     note_entries = [(b.date.strftime("%d %b %Y"), parse_notes(b.notes)) for b in sorted(batches, key=lambda b: b.date) if b.notes]
     story.extend(notes_section(note_entries))

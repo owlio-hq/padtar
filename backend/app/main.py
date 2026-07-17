@@ -190,29 +190,57 @@ def system_status():
     return {**guard.state(), "version": app_version()}
 
 
+@app.get("/api/system/update-status")
+def system_update_status():
+    """Cheap poll for the sidebar notification. Only actually hits GitHub once a
+    day (or as soon as the machine is back online) — never applies anything."""
+    info = updater.check_status()
+    return {**info, "current": app_version()}
+
+
 @app.post("/api/system/check-update")
-def system_check_update():
-    """Manual 'Check for Update'. Remote flag is re-checked FIRST; an update is
-    only ever applied when the flag says allowed."""
+def system_check_update(force: bool = True):
+    """Look for an update WITHOUT applying it. The remote flag is re-checked
+    first — a denied client is never told about updates."""
     result = guard.check_access()
     if result["locked"]:
         return {"status": "locked", "message": guard.LOCK_MESSAGE}
+    if not updater.updates_enabled():
+        return {"status": "dev", "version": app_version()}
     if result["flag"] == "offline":
         return {"status": "offline"}
+
+    info = updater.check_status(force=force)
+    if info["offline"]:
+        return {"status": "offline"}
+    if not info["available"]:
+        return {"status": "up_to_date", "version": app_version()}
+    return {"status": "available", "version": info["version"], "current": app_version()}
+
+
+@app.post("/api/system/apply-update")
+def system_apply_update():
+    """Apply the update — only ever reached by an explicit click, after the
+    client has saved any open work."""
+    result = guard.check_access()
+    if result["locked"]:
+        return {"status": "locked", "message": guard.LOCK_MESSAGE}
     if not updater.updates_enabled():
         return {"status": "dev"}
-
-    available, remote_version = updater.update_available()
-    if remote_version is None:
+    if result["flag"] == "offline":
         return {"status": "offline"}
-    if not available:
-        return {"status": "up_to_date", "version": app_version()}
 
     try:
         new_version = updater.apply_update()
-    except Exception as exc:
+    except updater.Offline:
+        return {"status": "offline"}
+    except updater.UpdateError as exc:
         logger.error("Update failed: %s", exc)
-        return {"status": "error", "message": "Update failed — nothing was changed. Try again later."}
+        return {"status": "error", "message": str(exc)}
+    except Exception as exc:  # unexpected — the install was rolled back
+        logger.exception("Unexpected update failure")
+        return {"status": "error", "message": "Update failed — the app is unchanged. Try again later."}
+
     updater.schedule_restart()
     return {"status": "updated", "version": new_version}
 

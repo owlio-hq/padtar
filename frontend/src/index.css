@@ -260,13 +260,28 @@ input[type='number'] {
   line-height: 1.1;
 }
 
-/* top input cards (date / production / office expense / cost per unit) */
+/* top cards (date / production / office expense / grand total / padtar).
+   Each carries a meaning colour via an inline `--cat`: a tinted top edge + icon,
+   so the row reads at a glance without shouting. */
 .field-card {
   position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
+  border-top: 2px solid var(--cat, var(--border));
   border-radius: var(--radius-card);
   padding: 12px 15px;
+}
+.field-card .field-label svg {
+  color: var(--cat, var(--text-muted));
+}
+/* computed values (grand total / padtar) — read-only, never a form control */
+.field-card .readonly-value {
+  border: none;
+  background: transparent;
+  padding-left: 0;
+  display: flex;
+  align-items: center;
+  font-variant-numeric: tabular-nums;
 }
 .field-card .field-label {
   font-size: 12.5px;
@@ -525,17 +540,27 @@ input[type='number'] {
   box-shadow: 0 0 0 3px var(--focus-ring);
   background: var(--surface);
 }
-/* auto-calculated cell (oil vaprayel) — boxed, amber, clearly not typed */
+/* auto-calculated cell (oil vaprayel) — same filled amber as Net Vaprash in the
+   Oil Sheet, so the link between the two is obvious at a glance. */
 .auto-box {
   display: flex;
   align-items: center;
+  justify-content: center;
   height: 32px;
   padding: 0 10px;
-  border: 1px dashed var(--border-strong);
   border-radius: var(--radius);
-  color: var(--tint-usage-text);
+  background: var(--tint-padtar-bg);
+  color: var(--tint-padtar-text);
+  font-weight: 600;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+}
+/* the whole automatic row is tinted + non-interactive (nothing here is typed) */
+.entry-table tr.auto-row td {
+  background: color-mix(in srgb, var(--tint-padtar-bg) 30%, transparent);
+}
+.entry-table tr.auto-row td.col-editable {
+  background: color-mix(in srgb, var(--tint-padtar-bg) 30%, transparent);
 }
 
 /* locked cell → muted text, clearly not editable (lock lives in the header) */
@@ -776,6 +801,36 @@ input[type='number'] {
   opacity: 1;
 }
 
+/* sidebar "Update available" notice — quiet, but with a dot so it's noticed */
+.update-notice {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  background-color: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  padding: 6px 9px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+.update-notice:hover {
+  background-color: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.update-dot {
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #ef4444;
+}
+
 /* header toggle buttons (theme / language) — clear hover + press feedback */
 .toggle-btn {
   display: inline-flex;
@@ -815,38 +870,128 @@ input[type='number'] {
 }
 
 /* --- print: show only the form content, clean for paper --- */
+/* ---------------------------------------------------------------------------
+   PRINT — the client prints a batch/day daily on a black-and-white printer and
+   wants it on ONE page. So: drop every colour, render inputs as plain text (a
+   document, not a form), and shrink everything to fit.
+   --------------------------------------------------------------------------- */
 @media print {
-  /* hide chrome: sidebar, topbar, page-header actions, buttons */
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  /* chrome + anything interactive has no business on paper */
   .app-sidebar,
   .app-topbar,
   .page-header-actions,
   .btn,
   .icon-btn,
   .reveal-target,
-  .toggle-btn {
+  .toggle-btn,
+  .back-circle,
+  .field-card-lock,
+  .col-lock-head-ico,
+  .dialog-overlay {
     display: none !important;
   }
+
+  /* everything mono: kill the category colours, tints and washes */
+  *,
+  *::before,
+  *::after {
+    background: transparent !important;
+    background-color: transparent !important;
+    color: #000 !important;
+    box-shadow: none !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  html,
   body,
   .app-main {
     background: #fff !important;
-    color: #000 !important;
+    font-size: 9pt !important;
   }
-  .card {
-    border: 1px solid #bbb !important;
-    box-shadow: none !important;
+  .app-main {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+  /* let the content use the full sheet — the 940px screen cap wastes paper */
+  .app-main > div,
+  .app-main .mx-auto {
+    max-width: none !important;
+    margin: 0 !important;
+  }
+
+  /* values print as text, not as boxes */
+  .field,
+  .field-inline,
+  .locked-field,
+  .readonly-value,
+  .auto-box,
+  input,
+  textarea,
+  select {
+    border: none !important;
+    padding: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    font-size: 9pt !important;
+    font-weight: 500 !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    resize: none !important;
+  }
+
+  /* compact cards + tables; never split a card across pages */
+  .card,
+  .field-card {
+    border: 1px solid #999 !important;
+    border-radius: 0 !important;
     break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .field-card {
+    padding: 4px 6px !important;
+  }
+  .category-strip {
+    padding: 3px 6px !important;
+    border-bottom: 1px solid #999 !important;
+  }
+  .category-strip .category-title {
+    font-size: 10pt !important;
+    font-weight: 700 !important;
   }
   .data-table td,
   .data-table th {
-    color: #000 !important;
+    padding: 2px 6px !important;
+    border-bottom: 1px solid #ddd !important;
   }
-  /* keep the semantic washes light but visible on paper */
+  .data-table thead th {
+    font-size: 7.5pt !important;
+    border-bottom: 1px solid #999 !important;
+  }
+  /* totals stay legible via weight + a rule, since colour is gone */
   .subtotal-row td,
   .grand-total-bar {
-    background: #eee !important;
-    color: #000 !important;
+    font-weight: 700 !important;
+    border-top: 1px solid #000 !important;
   }
-  @page {
-    margin: 1.4cm;
+  .oil-sheet-box {
+    margin: 4px 6px 6px !important;
+    padding: 4px 6px !important;
+    border: 1px solid #999 !important;
+  }
+  /* tighten the vertical rhythm so a full batch + notes lands on one page */
+  .mb-4,
+  .mb-5,
+  .mt-5 {
+    margin-top: 4px !important;
+    margin-bottom: 4px !important;
+  }
+  h1 {
+    font-size: 13pt !important;
   }
 }

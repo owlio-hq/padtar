@@ -3,6 +3,19 @@ tints (which themselves mirror the original Excel's fill colors: rate=blue,
 usage=yellow, unit/total=green) so exported documents look consistent with
 the on-screen UI. Kept in one place so both modules' exporters match."""
 
+from openpyxl.worksheet.properties import PageSetupProperties
+
+
+def fit_to_one_page(ws) -> None:
+    """Set a worksheet to print on a single page — the client prints these daily
+    and asked for one-page output."""
+    ws.page_setup.orientation = "portrait"
+    ws.page_setup.fitToPage = True
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 1
+    ws.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
+
+
 # openpyxl-style hex (no '#')
 HEADER_FILL = "F1F3F5"
 RATE_FILL = "DCEEFB"

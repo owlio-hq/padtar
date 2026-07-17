@@ -4,6 +4,7 @@ import { Logo } from './Logo'
 import { TopBar } from './TopBar'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { LangToggle } from '../components/LangToggle'
+import { UpdateNotice } from '../system/UpdateNotice'
 import { useLabels } from '../i18n/LabelsContext'
 
 const TOP_ITEMS = [{ to: '/', labelKey: 'nav.dashboard', fallback: 'Dashboard', icon: LayoutDashboard }]
@@ -62,6 +63,7 @@ export function AppShell() {
         </nav>
 
         <div className="flex flex-col gap-0.5 border-t pt-3" style={{ borderColor: 'var(--border)' }}>
+          <UpdateNotice />
           <ThemeToggle />
           <LangToggle />
         </div>
