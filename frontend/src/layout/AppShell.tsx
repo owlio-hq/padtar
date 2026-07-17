@@ -7,7 +7,7 @@ import { ThemeToggle } from '../components/ThemeToggle'
 import { LangToggle } from '../components/LangToggle'
 import { UpdateNotice } from '../system/UpdateNotice'
 import { UpdateToast } from '../system/UpdateToast'
-import { useUpdateStatus } from '../system/useUpdateStatus'
+import { useUpdate } from '../system/UpdateContext'
 import { getPending } from '../system/bugReports'
 import { useLabels } from '../i18n/LabelsContext'
 
@@ -24,7 +24,7 @@ const SYSTEM_ITEMS = [{ to: '/settings', labelKey: 'nav.settings', fallback: 'Se
 
 export function AppShell() {
   const { t } = useLabels()
-  const update = useUpdateStatus()
+  const update = useUpdate()
   const [hasPendingBug, setHasPendingBug] = useState(() => getPending().length > 0)
 
   useEffect(() => {

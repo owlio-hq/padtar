@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { AlertTriangle, Bell, Download, Send, Trash2, WifiOff } from 'lucide-react'
 import { PageHeader } from '../../components/PageHeader'
-import { useUpdateStatus } from '../../system/useUpdateStatus'
+import { useUpdate } from '../../system/UpdateContext'
 import { SnoozeMenu } from '../../system/SnoozeMenu'
 import { getHistory, type HistoryEntry } from '../../system/notificationHistory'
 import { getPending, dismissPending, submitReport, type PendingReport } from '../../system/bugReports'
@@ -27,9 +27,9 @@ const HISTORY_ICON: Record<HistoryEntry['kind'], typeof Bell> = {
 }
 
 export function NotificationsPage() {
-  const u = useUpdateStatus()
+  const u = useUpdate()
   const [pending, setPending] = useState<PendingReport[]>(() => getPending())
-  const [history] = useState(() => getHistory())
+  const [history, setHistory] = useState(() => getHistory())
   const [manualText, setManualText] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
   const [msg, setMsg] = useState<{ ok: boolean; message: string } | null>(null)
@@ -49,6 +49,7 @@ export function NotificationsPage() {
         setManualText('')
       }
     }
+    setHistory(getHistory()) // submitReport logs the outcome either way
     setBusyId(null)
   }
 
@@ -109,7 +110,13 @@ export function NotificationsPage() {
                       ? 'Save and update'
                       : 'Update now'}
             </button>
-            <SnoozeMenu disabled={u.busy} onSnooze={u.snooze} />
+            <SnoozeMenu
+              disabled={u.busy}
+              onSnooze={(kind) => {
+                u.snooze(kind)
+                setHistory(getHistory())
+              }}
+            />
           </div>
 
           <p className="mt-4 text-xs" style={{ color: 'var(--text-muted)' }}>

@@ -8,11 +8,20 @@ import { DayFormPage } from './modules/rojmel/DayFormPage'
 import { StockPage } from './modules/rojmel/StockPage'
 import { SettingsPage } from './modules/settings/SettingsPage'
 import { NotificationsPage } from './modules/notifications/NotificationsPage'
+import { UpdateProvider } from './system/UpdateContext'
 
 function App() {
   return (
     <Routes>
-      <Route element={<AppShell />}>
+      {/* the provider wraps the shell so the sidebar, the toast and the
+          Notifications page all read the same update state */}
+      <Route
+        element={
+          <UpdateProvider>
+            <AppShell />
+          </UpdateProvider>
+        }
+      >
         <Route path="/" element={<DashboardPage />} />
         <Route path="/rojmel" element={<DayListPage />} />
         <Route path="/rojmel/stock" element={<StockPage />} />
