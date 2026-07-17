@@ -483,6 +483,10 @@ input[type='number'] {
 .notes-grid-row .icon-btn {
   margin-top: 3px;
 }
+/* ruled filler for the printed sheet only — see @media print below */
+.notes-fill {
+  display: none;
+}
 
 /* bordered sub-block inside a settings card */
 .setting-block {
@@ -709,6 +713,14 @@ input[type='number'] {
   border-left-color: var(--accent);
   border-radius: 0 var(--radius) var(--radius) 0;
 }
+.nav-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #ef4444;
+  margin-left: auto;
+  flex-shrink: 0;
+}
 
 /* --- segmented control --- */
 .segmented {
@@ -831,6 +843,65 @@ input[type='number'] {
   background: #ef4444;
 }
 
+/* top-right "update available" toast — announces once, auto-dismisses */
+.update-toast {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 200;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  max-width: 300px;
+  border-radius: var(--radius-card);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  background-color: var(--surface);
+  color: var(--accent);
+  padding: 12px 12px 12px 14px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+  animation: update-toast-in 0.18s ease;
+}
+@keyframes update-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.update-toast-body {
+  cursor: pointer;
+  flex: 1;
+}
+.update-toast-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.update-toast-text {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.update-toast-close {
+  color: var(--text-muted);
+  padding: 2px;
+  border-radius: var(--radius);
+  flex-shrink: 0;
+}
+.update-toast-close:hover {
+  color: var(--text);
+  background-color: var(--row-hover);
+}
+
+/* the "remind me later" snooze dropdown — a select styled like a btn-outline */
+.snooze-select {
+  appearance: none;
+  cursor: pointer;
+}
+
 /* header toggle buttons (theme / language) — clear hover + press feedback */
 .toggle-btn {
   display: inline-flex;
@@ -918,11 +989,17 @@ input[type='number'] {
     overflow: visible !important;
     padding: 0 !important;
   }
-  /* let the content use the full sheet — the 940px screen cap wastes paper */
+  /* let the content use the full sheet — the 940px screen cap wastes paper.
+     Flex column + a fixed page height means the Notes card (flex: 1 below) can
+     stretch down to fill whatever room the tables above didn't use, instead of
+     the sheet just stopping partway down a mostly-blank page. */
   .app-main > div,
   .app-main .mx-auto {
     max-width: none !important;
     margin: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 277mm !important; /* A4 minus the 10mm @page margin on each side */
   }
 
   /* values print as text, not as boxes */
@@ -984,14 +1061,45 @@ input[type='number'] {
     padding: 4px 6px !important;
     border: 1px solid #999 !important;
   }
-  /* tighten the vertical rhythm so a full batch + notes lands on one page */
+  .oil-sheet-box .gap-3 {
+    gap: 4px !important;
+  }
+  /* tighten the vertical rhythm so a full batch + notes lands on one page,
+     leaving more of it free for the Notes card below to grow into */
   .mb-4,
   .mb-5,
   .mt-5 {
-    margin-top: 4px !important;
-    margin-bottom: 4px !important;
+    margin-top: 3px !important;
+    margin-bottom: 3px !important;
+  }
+  .category-card table.data-table tbody tr {
+    line-height: 1.1 !important;
   }
   h1 {
     font-size: 13pt !important;
+  }
+
+  /* Notes: stretch to fill whatever page room the tables above left over, and
+     rule the empty tail with faint lines — a proper space to write, not a
+     cramped table sitting above a dead blank page. */
+  .notes-card {
+    flex: 1 1 auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 45mm !important;
+    margin-top: 6px !important;
+  }
+  .notes-fill {
+    display: block !important;
+    flex: 1 1 auto !important;
+    min-height: 12mm;
+    margin-top: 4px;
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent,
+      transparent 7mm,
+      #ccc 7mm,
+      #ccc calc(7mm + 0.5pt)
+    );
   }
 }

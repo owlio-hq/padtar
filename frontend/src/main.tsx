@@ -9,6 +9,9 @@ import { LabelsProvider } from './i18n/LabelsContext'
 import { AuthProvider } from './auth/AuthContext'
 import { LoginGate } from './auth/LoginGate'
 import { GuardGate } from './system/GuardGate'
+import { installCrashReporter } from './system/bugReports'
+
+installCrashReporter()
 
 const queryClient = new QueryClient()
 

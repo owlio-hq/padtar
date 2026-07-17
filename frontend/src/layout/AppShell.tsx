@@ -1,11 +1,17 @@
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { LayoutDashboard, Wallet, Package, Settings } from 'lucide-react'
+import { LayoutDashboard, Wallet, Package, Settings, Bell } from 'lucide-react'
 import { Logo } from './Logo'
 import { TopBar } from './TopBar'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { LangToggle } from '../components/LangToggle'
 import { UpdateNotice } from '../system/UpdateNotice'
+import { UpdateToast } from '../system/UpdateToast'
+import { useUpdateStatus } from '../system/useUpdateStatus'
+import { getPending } from '../system/bugReports'
 import { useLabels } from '../i18n/LabelsContext'
+
+const PENDING_POLL_MS = 15 * 1000
 
 const TOP_ITEMS = [{ to: '/', labelKey: 'nav.dashboard', fallback: 'Dashboard', icon: LayoutDashboard }]
 
@@ -18,6 +24,13 @@ const SYSTEM_ITEMS = [{ to: '/settings', labelKey: 'nav.settings', fallback: 'Se
 
 export function AppShell() {
   const { t } = useLabels()
+  const update = useUpdateStatus()
+  const [hasPendingBug, setHasPendingBug] = useState(() => getPending().length > 0)
+
+  useEffect(() => {
+    const id = setInterval(() => setHasPendingBug(getPending().length > 0), PENDING_POLL_MS)
+    return () => clearInterval(id)
+  }, [])
 
   const renderItem = (item: { to: string; labelKey: string; fallback: string; icon: typeof Wallet }) => {
     const Icon = item.icon
@@ -36,6 +49,7 @@ export function AppShell() {
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ backgroundColor: 'var(--surface-alt)' }}>
+      <UpdateToast u={update} />
       <aside
         className="app-sidebar flex h-full w-60 shrink-0 flex-col overflow-y-auto border-r px-3 py-4"
         style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface)' }}
@@ -59,11 +73,16 @@ export function AppShell() {
           {MODULE_ITEMS.map(renderItem)}
 
           <div className="nav-section">System</div>
+          <NavLink to="/notifications" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <Bell size={17} />
+            {t('nav.notifications', 'Notifications')}
+            {(update.status?.available || hasPendingBug) && <span className="nav-dot" />}
+          </NavLink>
           {SYSTEM_ITEMS.map(renderItem)}
         </nav>
 
         <div className="flex flex-col gap-0.5 border-t pt-3" style={{ borderColor: 'var(--border)' }}>
-          <UpdateNotice />
+          <UpdateNotice u={update} />
           <ThemeToggle />
           <LangToggle />
         </div>

@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.config import APP_NAME, FRONTEND_DIST_DIR, app_version
 from app.core import auth as auth_core
 from app.core import backup as backup_core
-from app.core import guard, updater
+from app.core import bug_reports, guard, updater
 from app.core import labels as labels_core
 from app.core import settings as settings_core
 from app.core.labels import LabelIn, LabelOut
@@ -243,6 +243,33 @@ def system_apply_update():
 
     updater.schedule_restart()
     return {"status": "updated", "version": new_version}
+
+
+class BugReportIn(BaseModel):
+    description: str
+    context: dict = {}
+
+
+@app.post("/api/system/report-bug")
+def system_report_bug(payload: BugReportIn):
+    """Send a client-reported problem to GitHub as an issue. Never applies or
+    changes anything locally — purely a one-way report the client controls."""
+    result = guard.check_access()
+    if result["locked"]:
+        return {"status": "locked", "message": guard.LOCK_MESSAGE}
+    if not bug_reports.configured():
+        return {"status": "not_configured"}
+    description = payload.description.strip()
+    if not description:
+        return {"status": "error", "message": "Nothing to report."}
+
+    try:
+        url = bug_reports.submit(description, payload.context)
+    except bug_reports.Offline:
+        return {"status": "offline"}
+    except bug_reports.ReportError as exc:
+        return {"status": "error", "message": str(exc)}
+    return {"status": "sent", "url": url}
 
 
 # -------- Frontend static build --------

@@ -63,7 +63,7 @@ export function NotesGrid({ value, onChange }: { value: string | null; onChange:
   }
 
   return (
-    <div className="card mt-5 p-4">
+    <div className="card notes-card mt-5 p-4">
       <label className="mb-2 flex items-center gap-1.5 text-sm font-medium" style={{ color: 'var(--text)' }}>
         <StickyNote size={15} />
         Notes
@@ -113,6 +113,9 @@ export function NotesGrid({ value, onChange }: { value: string | null; onChange:
           Add row
         </button>
       )}
+      {/* print-only: ruled blank space so the printed sheet has real room to write
+          more notes by hand, instead of ending abruptly after the last row */}
+      <div className="notes-fill" />
     </div>
   )
 }

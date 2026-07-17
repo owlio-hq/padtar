@@ -1,108 +1,18 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Download, WifiOff } from 'lucide-react'
-import { api } from '../api/client'
-import { saveOpenSheet, sheetHasUnsavedWork } from './openSheet'
+import { SnoozeMenu } from './SnoozeMenu'
+import type { UseUpdateStatus } from './useUpdateStatus'
 
 /**
- * Update notification (sidebar only).
- *
- * This is a business ledger: an update must never interrupt work or drop a
- * half-entered sheet. So nothing is ever applied automatically — the app checks
- * once a day when it has internet, shows a quiet notice here, and only updates
- * when the worker clicks. Any open sheet is saved first.
+ * Sidebar "Update available" button + popup. Quiet, but with a dot so it's noticed.
+ * All the actual state (polling, snooze, save-then-update) lives in useUpdateStatus,
+ * shared with the full Notifications page — this component is just the compact view.
  */
-
-const SNOOZE_KEY = 'padtar.update.snoozedUntil'
-const SNOOZE_MS = 4 * 60 * 60 * 1000 // remind again later the same day
-const POLL_MS = 30 * 60 * 1000 // the backend only calls GitHub once a day anyway
-
-interface UpdateStatus {
-  available: boolean
-  version: string
-  current: string
-  offline: boolean
-  checked: boolean
-}
-
-type Phase = 'idle' | 'saving' | 'updating' | 'restarting'
-
-export function UpdateNotice() {
-  const [status, setStatus] = useState<UpdateStatus | null>(null)
+export function UpdateNotice({ u }: { u: UseUpdateStatus }) {
   const [open, setOpen] = useState(false)
-  const [phase, setPhase] = useState<Phase>('idle')
-  const [error, setError] = useState<string | null>(null)
-  const [snoozedUntil, setSnoozedUntil] = useState<number>(() => Number(localStorage.getItem(SNOOZE_KEY) ?? 0))
+  const { status, phase, error, snoozed, dirty, busy, snooze, updateNow } = u
 
-  const refresh = useCallback(() => {
-    api
-      .get<UpdateStatus>('/system/update-status')
-      .then(setStatus)
-      .catch(() => {}) // offline/locked — just try again on the next tick
-  }, [])
-
-  useEffect(() => {
-    refresh()
-    const id = setInterval(refresh, POLL_MS)
-    return () => clearInterval(id)
-  }, [refresh])
-
-  const snoozed = Date.now() < snoozedUntil
   if (!status?.available || (snoozed && !open)) return null
-
-  function snooze() {
-    const until = Date.now() + SNOOZE_MS
-    localStorage.setItem(SNOOZE_KEY, String(until))
-    setSnoozedUntil(until)
-    setOpen(false)
-  }
-
-  async function updateNow() {
-    setError(null)
-
-    // 1. never lose in-progress work
-    if (sheetHasUnsavedWork()) {
-      setPhase('saving')
-      try {
-        await saveOpenSheet()
-      } catch {
-        setPhase('idle')
-        setError('Could not save your open sheet, so the update was cancelled. Please save it yourself, then try again.')
-        return
-      }
-    }
-
-    // 2. apply
-    setPhase('updating')
-    try {
-      const r = await api.post<{ status: string; version?: string; message?: string }>('/system/apply-update')
-      if (r.status === 'updated') {
-        setPhase('restarting')
-        const poll = () => {
-          fetch('/api/health')
-            .then((res) => (res.ok ? window.location.reload() : setTimeout(poll, 2000)))
-            .catch(() => setTimeout(poll, 2000))
-        }
-        setTimeout(poll, 3000)
-        return
-      }
-      setPhase('idle')
-      setError(
-        r.status === 'offline'
-          ? 'No internet connection. Connect to the internet and try again — nothing was changed.'
-          : r.status === 'locked'
-            ? 'This copy is locked. Contact the developer.'
-            : r.status === 'dev'
-              ? 'Updates only apply in the installed app.'
-              : (r.message ?? 'Update failed — the app is unchanged. Try again later.'),
-      )
-    } catch {
-      setPhase('idle')
-      setError('No internet connection. Connect to the internet and try again — nothing was changed.')
-    }
-  }
-
-  const busy = phase !== 'idle'
-  const dirty = sheetHasUnsavedWork()
 
   return (
     <>
@@ -155,9 +65,13 @@ export function UpdateNotice() {
             </p>
 
             <div className="mt-5 flex justify-end gap-2">
-              <button className="btn btn-outline" onClick={snooze} disabled={busy}>
-                Remind me later
-              </button>
+              <SnoozeMenu
+                disabled={busy}
+                onSnooze={(kind) => {
+                  snooze(kind)
+                  setOpen(false)
+                }}
+              />
               <button className="btn btn-primary" onClick={updateNow} disabled={busy}>
                 {phase === 'saving'
                   ? 'Saving…'

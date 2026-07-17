@@ -35,6 +35,13 @@ UPDATE_ZIP_URL = f"https://codeload.github.com/{UPDATE_REPO}/zip/refs/heads/{UPD
 TRIAL_END = date(2026, 8, 14)
 VERSION_FILE = PROJECT_ROOT / "VERSION"
 
+# --- client bug reports -> GitHub issue (see core/bug_reports.py) ---
+# No token lives in the repo or the shipped app — read only from the environment
+# on the machine running the packaged build. Needs a fine-grained GitHub PAT
+# scoped to "Issues: write" on this one repo only (not full repo write).
+BUG_REPORT_TOKEN_ENV = "PADTAR_BUG_REPORT_TOKEN"
+ISSUES_API_URL = f"https://api.github.com/repos/{UPDATE_REPO}/issues"
+
 
 def app_version() -> str:
     try:

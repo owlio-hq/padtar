@@ -7,6 +7,7 @@ import { DayListPage } from './modules/rojmel/DayListPage'
 import { DayFormPage } from './modules/rojmel/DayFormPage'
 import { StockPage } from './modules/rojmel/StockPage'
 import { SettingsPage } from './modules/settings/SettingsPage'
+import { NotificationsPage } from './modules/notifications/NotificationsPage'
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
         <Route path="/shakkarpara" element={<BatchListPage />} />
         <Route path="/shakkarpara/:id" element={<BatchFormPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
       </Route>
     </Routes>
   )
