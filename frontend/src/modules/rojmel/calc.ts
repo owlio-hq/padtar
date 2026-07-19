@@ -3,7 +3,11 @@
 import type { MoneyLine, SalesLine } from './types'
 
 export function computeDay(salesLines: SalesLine[], incomeLines: MoneyLine[], expenseLines: MoneyLine[]) {
-  const lines = salesLines.map((s) => ({ ...s, total: s.rate * s.qty }))
+  const lines = salesLines.map((s) => ({
+    ...s,
+    total: s.rate * s.qty,
+    net_pic: (s.opening_pic || 0) - (s.closing_pic || 0), // NET.PIC = opening − closing (can go negative)
+  }))
   let factorySales = 0
   for (const line of lines) factorySales += line.total
 

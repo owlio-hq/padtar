@@ -25,6 +25,9 @@ class RojmelDay(Base):
     expense_lines: Mapped[list["RojmelExpenseLine"]] = relationship(
         back_populates="day", cascade="all, delete-orphan", order_by="RojmelExpenseLine.sort_order"
     )
+    carry_forward_lines: Mapped[list["RojmelCarryForwardLine"]] = relationship(
+        back_populates="day", cascade="all, delete-orphan", order_by="RojmelCarryForwardLine.sort_order"
+    )
     history: Mapped[list["RojmelDayHistory"]] = relationship(back_populates="day", cascade="all, delete-orphan")
 
 
@@ -36,6 +39,10 @@ class RojmelSalesLine(Base):
     product: Mapped[str] = mapped_column(String, nullable=False)
     rate: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     qty: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    # OPP.PIC / CLO.PIC — morning + evening counts, both typed by the owner.
+    # NET.PIC (= opening − closing) is derived at serialize time, never stored.
+    opening_pic: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    closing_pic: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     day: Mapped["RojmelDay"] = relationship(back_populates="sales_lines")
@@ -65,6 +72,21 @@ class RojmelExpenseLine(Base):
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     day: Mapped["RojmelDay"] = relationship(back_populates="expense_lines")
+
+
+class RojmelCarryForwardLine(Base):
+    """Named carry-forward amounts shown below the notes (e.g. "Chirag bhai", "Chetna ben").
+    Informational only — like the block below the totals in the Excel, NOT part of any total."""
+
+    __tablename__ = "rojmel_carry_forward_lines"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    day_id: Mapped[int] = mapped_column(ForeignKey("rojmel_days.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    amount: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    day: Mapped["RojmelDay"] = relationship(back_populates="carry_forward_lines")
 
 
 class RojmelDayHistory(Base):

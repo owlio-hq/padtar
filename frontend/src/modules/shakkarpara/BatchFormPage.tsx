@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Plus, Trash2, FileSpreadsheet, FileText, Printer, Pencil, Lock,
+  Plus, Trash2, FileSpreadsheet, FileText, Printer, Pencil, Lock, Save,
   Wheat, Flame, Fuel, Box, Users, Calendar, Factory, Receipt, Sigma, Coins, type LucideIcon,
 } from 'lucide-react'
 import { shakkarparaApi } from './api'
@@ -19,6 +19,8 @@ import { NumberField } from '../../components/NumberField'
 import { NotesGrid } from '../../components/NotesGrid'
 import { useEntryFlow } from '../../components/useEntryFlow'
 import { useUnsavedGuard } from '../../components/useUnsavedGuard'
+import { useSaveShortcut } from '../../components/useSaveShortcut'
+import { saveExport } from '../../system/saveExport'
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
@@ -219,6 +221,12 @@ export function BatchFormPage() {
   function handleSave() {
     saveMutation.mutate(buildPayload())
   }
+  useSaveShortcut(handleSave, !saveMutation.isPending)
+
+  async function exportFile(kind: 'excel' | 'pdf') {
+    const ext = kind === 'excel' ? 'xlsx' : 'pdf'
+    await saveExport(`/api/shakkarpara/batches/${batchId}/export/${kind}`, `shakkarpara_${date}_${batchId}.${ext}`)
+  }
 
   // What the worker actually typed — server-added fields (id, total) are left
   // out, otherwise a refetch after saving would look like a fresh edit.
@@ -260,26 +268,32 @@ export function BatchFormPage() {
         backTo="/shakkarpara"
         backLabel={t('shakkarpara.title', 'Shakkarpara')}
         actions={
-          !isNew ? (
+          <>
+            <button className="btn btn-primary" onClick={handleSave} disabled={saveMutation.isPending} title="Save (Ctrl+S)">
+              <Save size={14} />
+              {saveMutation.isPending ? 'Saving…' : 'Save'}
+            </button>
+            {!isNew && (
             <>
               <button className="btn btn-outline" onClick={() => window.print()} title="Print this batch">
                 <Printer size={14} />
                 Print
               </button>
-              <a href={`/api/shakkarpara/batches/${batchId}/export/excel`} className="btn btn-outline" title="Export this batch to Excel">
+              <button className="btn btn-outline" onClick={() => exportFile('excel')} title="Export this batch to Excel">
                 <FileSpreadsheet size={14} style={{ color: 'var(--tint-total-text)' }} />
                 Excel
-              </a>
-              <a href={`/api/shakkarpara/batches/${batchId}/export/pdf`} className="btn btn-outline" title="Export this batch to PDF">
+              </button>
+              <button className="btn btn-outline" onClick={() => exportFile('pdf')} title="Export this batch to PDF">
                 <FileText size={14} style={{ color: 'var(--tint-rate-text)' }} />
                 PDF
-              </a>
+              </button>
               <button className="btn btn-danger" onClick={requestDeleteBatch}>
                 <Trash2 size={14} />
                 Delete
               </button>
             </>
-          ) : undefined
+            )}
+          </>
         }
       />
 

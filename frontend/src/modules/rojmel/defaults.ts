@@ -1,7 +1,8 @@
 import type { SalesLine } from './types'
 
 // Mirrors backend/app/modules/rojmel/defaults.py — name first, size after.
-export const DEFAULT_PRODUCTS: SalesLine[] = [
+// (Seed rows only; opening_pic/derived stock fields are filled in at use.)
+export const DEFAULT_PRODUCTS: Pick<SalesLine, 'product' | 'rate' | 'qty'>[] = [
   { product: 'Salted Wafer 200g', rate: 40, qty: 0 },
   { product: 'Masala 200g', rate: 50, qty: 0 },
   { product: 'Salted Wafer 500g', rate: 100, qty: 0 },

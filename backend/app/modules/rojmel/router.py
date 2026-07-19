@@ -13,6 +13,7 @@ from app.db import get_db
 from app.modules.rojmel import engine, export as export_module
 from app.modules.rojmel.defaults import DEFAULT_PRODUCTS
 from app.modules.rojmel.models import (
+    RojmelCarryForwardLine,
     RojmelDay,
     RojmelDayHistory,
     RojmelExpenseLine,
@@ -26,7 +27,10 @@ router = APIRouter(prefix="/api/rojmel", tags=["rojmel"])
 
 
 def _to_engine_sales(day: RojmelDay) -> list[engine.SalesLine]:
-    return [engine.SalesLine(product=s.product, rate=s.rate, qty=s.qty) for s in day.sales_lines]
+    return [
+        engine.SalesLine(product=s.product, rate=s.rate, qty=s.qty, opening_pic=s.opening_pic, closing_pic=s.closing_pic)
+        for s in day.sales_lines
+    ]
 
 
 def _to_engine_money(lines) -> list[engine.MoneyLine]:
@@ -38,7 +42,16 @@ def _serialize(day: RojmelDay) -> DayOut:
     totals_by_id = {line.id: computed for line, computed in zip(day.sales_lines, result.sales_lines)}
 
     sales_out = [
-        {"id": s.id, "product": s.product, "rate": s.rate, "qty": s.qty, "total": totals_by_id[s.id].total}
+        {
+            "id": s.id,
+            "product": s.product,
+            "rate": s.rate,
+            "qty": s.qty,
+            "total": totals_by_id[s.id].total,
+            "opening_pic": s.opening_pic,
+            "closing_pic": s.closing_pic,
+            "net_pic": totals_by_id[s.id].net_pic,
+        }
         for s in day.sales_lines
     ]
     income_out = [
@@ -47,6 +60,7 @@ def _serialize(day: RojmelDay) -> DayOut:
     expense_out = [
         {"id": m.id, "description": m.description, "amount": m.amount, "note": m.note} for m in day.expense_lines
     ]
+    carry_out = [{"id": c.id, "name": c.name, "amount": c.amount} for c in day.carry_forward_lines]
 
     return DayOut(
         id=day.id,
@@ -57,6 +71,7 @@ def _serialize(day: RojmelDay) -> DayOut:
         sales_lines=sales_out,
         income_lines=income_out,
         expense_lines=expense_out,
+        carry_forward_lines=carry_out,
         factory_sales=result.factory_sales,
         total_income=result.total_income,
         total_expense=result.total_expense,
@@ -68,9 +83,10 @@ def _snapshot_dict(day: RojmelDay) -> dict:
     return {
         "date": day.date.isoformat(),
         "notes": day.notes,
-        "sales_lines": [{"product": s.product, "rate": s.rate, "qty": s.qty} for s in day.sales_lines],
+        "sales_lines": [{"product": s.product, "rate": s.rate, "qty": s.qty, "opening_pic": s.opening_pic, "closing_pic": s.closing_pic} for s in day.sales_lines],
         "income_lines": [{"description": m.description, "amount": m.amount, "note": m.note} for m in day.income_lines],
         "expense_lines": [{"description": m.description, "amount": m.amount, "note": m.note} for m in day.expense_lines],
+        "carry_forward_lines": [{"name": c.name, "amount": c.amount} for c in day.carry_forward_lines],
     }
 
 
@@ -84,7 +100,14 @@ def _apply_sales(day: RojmelDay, sales_in, db: Session) -> None:
     for idx, row in enumerate(rows):
         data = row if isinstance(row, dict) else row.model_dump()
         day.sales_lines.append(
-            RojmelSalesLine(product=data["product"], rate=data.get("rate", 0.0), qty=data.get("qty", 0.0), sort_order=idx)
+            RojmelSalesLine(
+                product=data["product"],
+                rate=data.get("rate", 0.0),
+                qty=data.get("qty", 0.0),
+                opening_pic=data.get("opening_pic", 0.0),
+                closing_pic=data.get("closing_pic", 0.0),
+                sort_order=idx,
+            )
         )
 
 
@@ -95,6 +118,15 @@ def _apply_money(day: RojmelDay, attr: str, model, rows_in) -> None:
         data = row if isinstance(row, dict) else row.model_dump()
         getattr(day, attr).append(
             model(description=data.get("description", ""), amount=data.get("amount", 0.0), note=data.get("note", ""), sort_order=idx)
+        )
+
+
+def _apply_carry_forward(day: RojmelDay, rows_in) -> None:
+    day.carry_forward_lines.clear()
+    for idx, row in enumerate(rows_in or []):
+        data = row if isinstance(row, dict) else row.model_dump()
+        day.carry_forward_lines.append(
+            RojmelCarryForwardLine(name=data.get("name", ""), amount=data.get("amount", 0.0), sort_order=idx)
         )
 
 
@@ -192,6 +224,7 @@ def create_day(payload: DayIn, db: Session = Depends(get_db)):
     _apply_sales(day, payload.sales_lines, db)
     _apply_money(day, "income_lines", RojmelIncomeLine, payload.income_lines)
     _apply_money(day, "expense_lines", RojmelExpenseLine, payload.expense_lines)
+    _apply_carry_forward(day, payload.carry_forward_lines)
 
     db.add(day)
     db.commit()
@@ -214,6 +247,7 @@ def update_day(day_id: int, payload: DayIn, db: Session = Depends(get_db)):
     _apply_sales(day, payload.sales_lines, db)
     _apply_money(day, "income_lines", RojmelIncomeLine, payload.income_lines)
     _apply_money(day, "expense_lines", RojmelExpenseLine, payload.expense_lines)
+    _apply_carry_forward(day, payload.carry_forward_lines)
 
     db.commit()
     db.refresh(day)
@@ -257,6 +291,7 @@ def undo_day(day_id: int, db: Session = Depends(get_db)):
     _apply_sales(day, data["sales_lines"], db)
     _apply_money(day, "income_lines", RojmelIncomeLine, data["income_lines"])
     _apply_money(day, "expense_lines", RojmelExpenseLine, data["expense_lines"])
+    _apply_carry_forward(day, data.get("carry_forward_lines"))
 
     db.commit()
     db.refresh(day)

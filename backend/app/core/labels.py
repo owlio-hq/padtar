@@ -54,7 +54,7 @@ DEFAULT_LABELS: dict[str, tuple[str, str]] = {
     "rojmel.date": ("Date", "Date"),
     "rojmel.product": ("Product", "Product"),
     "rojmel.rate": ("Rate", "Rate"),
-    "rojmel.qty": ("Pic", "Pieces"),
+    "rojmel.qty": ("Sales", "Sales"),
     "rojmel.total": ("Total", "Total"),
     "rojmel.factory_sales": ("Factory Sales", "Factory Sales"),
     "rojmel.income": ("Income", "Income"),
@@ -84,6 +84,14 @@ class Label(Base):
     english_label: Mapped[str] = mapped_column(String, nullable=False)
 
 
+# Labels renamed after they were first seeded. Only rows still holding the OLD
+# default are corrected — a worker's own custom rename is left alone.
+# key -> (old_gujarati, old_english, new_gujarati, new_english)
+_RELABELS: dict[str, tuple[str, str, str, str]] = {
+    "rojmel.qty": ("Pic", "Pieces", "Sales", "Sales"),
+}
+
+
 def seed_defaults() -> None:
     db: Session = SessionLocal()
     try:
@@ -91,6 +99,12 @@ def seed_defaults() -> None:
         for key, (gujarati, english) in DEFAULT_LABELS.items():
             if key not in existing_keys:
                 db.add(Label(key=key, gujarati_label=gujarati, english_label=english))
+
+        for key, (old_g, old_e, new_g, new_e) in _RELABELS.items():
+            row = db.get(Label, key)
+            if row is not None and row.gujarati_label == old_g and row.english_label == old_e:
+                row.gujarati_label, row.english_label = new_g, new_e
+
         db.commit()
     finally:
         db.close()

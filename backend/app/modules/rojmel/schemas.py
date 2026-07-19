@@ -7,12 +7,15 @@ class SalesLineIn(BaseModel):
     product: str
     rate: float = 0.0
     qty: float = 0.0
+    opening_pic: float = 0.0  # OPP.PIC — morning count (typed)
+    closing_pic: float = 0.0  # CLO.PIC — evening count (typed)
 
 
 class SalesLineOut(SalesLineIn):
     model_config = ConfigDict(from_attributes=True)
     id: int
     total: float
+    net_pic: float  # NET.PIC = opening - closing
 
 
 class DefaultProductIn(BaseModel):
@@ -31,12 +34,23 @@ class MoneyLineOut(MoneyLineIn):
     id: int
 
 
+class CarryForwardLineIn(BaseModel):
+    name: str = ""
+    amount: float = 0.0
+
+
+class CarryForwardLineOut(CarryForwardLineIn):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+
+
 class DayIn(BaseModel):
     date: date
     notes: str | None = None
     sales_lines: list[SalesLineIn] | None = None  # None -> seed default products
     income_lines: list[MoneyLineIn] | None = None
     expense_lines: list[MoneyLineIn] | None = None
+    carry_forward_lines: list[CarryForwardLineIn] | None = None
 
 
 class DayOut(BaseModel):
@@ -49,6 +63,7 @@ class DayOut(BaseModel):
     sales_lines: list[SalesLineOut]
     income_lines: list[MoneyLineOut]
     expense_lines: list[MoneyLineOut]
+    carry_forward_lines: list[CarryForwardLineOut]
     factory_sales: float
     total_income: float
     total_expense: float

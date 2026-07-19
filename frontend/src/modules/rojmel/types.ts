@@ -3,7 +3,10 @@ export interface SalesLine {
   product: string
   rate: number
   qty: number
+  opening_pic: number // OPP.PIC — morning count (typed)
+  closing_pic: number // CLO.PIC — evening count (typed)
   total?: number
+  net_pic?: number // NET.PIC = opening - closing (derived, can be negative)
 }
 
 export interface MoneyLine {
@@ -11,6 +14,12 @@ export interface MoneyLine {
   description: string
   amount: number
   note: string
+}
+
+export interface CarryForwardLine {
+  id?: number
+  name: string
+  amount: number
 }
 
 export interface Day {
@@ -22,6 +31,7 @@ export interface Day {
   sales_lines: Required<SalesLine>[]
   income_lines: Required<MoneyLine>[]
   expense_lines: Required<MoneyLine>[]
+  carry_forward_lines: Required<CarryForwardLine>[]
   factory_sales: number
   total_income: number
   total_expense: number
@@ -34,6 +44,7 @@ export interface DayInput {
   sales_lines: SalesLine[]
   income_lines: MoneyLine[]
   expense_lines: MoneyLine[]
+  carry_forward_lines: CarryForwardLine[]
 }
 
 export interface HistorySnapshot {

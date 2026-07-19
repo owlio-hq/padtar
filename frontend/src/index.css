@@ -30,6 +30,9 @@
   --tint-padtar-text: #5c2c0a;
   --tint-negative-bg: #f7d5d5;
   --tint-negative-text: #862323;
+  /* NET.PIC value: clearly red when negative, a solid readable blue otherwise */
+  --net-neg: #d61f1f;
+  --net-pos: #1d4ed8;
 
   --row-hover: #e6e9ee;
   --focus-ring: rgba(31, 122, 69, 0.28);
@@ -72,6 +75,9 @@
   --tint-padtar-text: #63d29c;
   --tint-negative-bg: #2a1414;
   --tint-negative-text: #e28c8c;
+  /* NET.PIC value: brighter for dark-theme legibility */
+  --net-neg: #f6544f;
+  --net-pos: #5b9dfb;
 
   --row-hover: #17171b;
   --focus-ring: rgba(47, 157, 104, 0.3);
@@ -608,6 +614,62 @@ input[type='number'] {
   border-color: var(--accent);
   color: var(--text);
 }
+/* compact locked value inside a table cell (opening pieces, carry-forward amount) */
+.locked-field-inline {
+  height: 30px;
+  padding: 0 8px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Stock cells (OPP.PIC / CLO.PIC): both the locked button and the unlocked input
+   render as the SAME proper field box, so the column looks intentional — not a
+   tiny chip — whether or not it's currently unlocked. */
+.entry-table td.col-stock {
+  padding: 6px 12px;
+  background: var(--input-col-bg);
+}
+.entry-table td.col-stock .field-inline,
+.stock-locked {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--input-box-bg);
+  color: var(--text);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.stock-locked {
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+.entry-table td.col-stock .field-inline:hover,
+.stock-locked:hover {
+  border-color: var(--tint-rate-text);
+  color: var(--text);
+}
+.entry-table td.col-stock .field-inline:focus {
+  border-color: var(--tint-rate-text);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+  background: var(--surface);
+  outline: none;
+}
+
+/* live money tints — income reads green, kharcho reads red, subtle in light theme */
+.money-income {
+  background-color: color-mix(in srgb, var(--tint-total-bg) 45%, transparent) !important;
+  color: var(--tint-total-text);
+}
+.money-expense {
+  background-color: color-mix(in srgb, var(--tint-negative-bg) 55%, transparent) !important;
+  color: var(--tint-negative-text);
+}
 
 /* --- tables --- */
 .data-table {
@@ -940,6 +1002,15 @@ input[type='number'] {
   color: var(--text);
 }
 
+/* ---------------------------------------------------------------------------
+   Rojmel print sheet — a dedicated, structured document (RojmelPrintSheet.tsx)
+   rendered only when printing, instead of restyling the live form. Hidden on
+   screen; the @media print block below swaps it in for the interactive tree.
+   --------------------------------------------------------------------------- */
+.print-sheet {
+  display: none;
+}
+
 /* --- print: show only the form content, clean for paper --- */
 /* ---------------------------------------------------------------------------
    PRINT — the client prints a batch/day daily on a black-and-white printer and
@@ -947,6 +1018,110 @@ input[type='number'] {
    document, not a form), and shrink everything to fit.
    --------------------------------------------------------------------------- */
 @media print {
+  /* Rojmel: hide the interactive form, show the structured print sheet instead.
+     The form div also carries `mx-auto`, and the `.app-main .mx-auto { display:flex }`
+     rule below out-ranks a bare `.rojmel-screen` — so this hide rule is written with
+     enough specificity (0,3,0) to win, or the form un-hides and prints clipped. */
+  .app-main .rojmel-screen.mx-auto {
+    display: none !important;
+  }
+  .print-sheet {
+    display: block !important;
+    font-size: 9pt;
+    color: #000;
+  }
+  .print-sheet .ps-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1.5pt solid #000;
+    padding-bottom: 3pt;
+    margin-bottom: 6pt;
+  }
+  .print-sheet .ps-title {
+    font-size: 13pt;
+    font-weight: 700;
+  }
+  .print-sheet .ps-date {
+    font-size: 11pt;
+    font-weight: 700;
+  }
+  .print-sheet .ps-subhead {
+    font-weight: 700;
+    font-size: 9pt;
+    margin: 5pt 0 2pt;
+    border-bottom: 0.5pt solid #999;
+  }
+  .print-sheet,
+  .print-sheet * {
+    box-sizing: border-box;
+  }
+  .print-sheet .ps-table {
+    width: 100%;
+    max-width: 100%;
+    table-layout: fixed; /* never let long product names widen the table past the page */
+    border-collapse: collapse;
+    margin-bottom: 2pt;
+  }
+  .print-sheet .ps-table th,
+  .print-sheet .ps-table td {
+    border: 0.5pt solid #bbb;
+    padding: 1.5pt 4pt;
+    text-align: left;
+    vertical-align: top;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-word;
+  }
+  .print-sheet .ps-table th {
+    border-bottom: 1pt solid #000;
+    font-weight: 700;
+    font-size: 8pt;
+  }
+  .print-sheet .ps-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .print-sheet .ps-total-row td {
+    font-weight: 700;
+    border-top: 1pt solid #000;
+  }
+  .print-sheet .ps-money {
+    display: flex;
+    gap: 8pt;
+    align-items: flex-start;
+  }
+  .print-sheet .ps-money-col {
+    flex: 1;
+    min-width: 0;
+  }
+  .print-sheet .ps-summary {
+    display: flex;
+    justify-content: space-between;
+    gap: 8pt;
+    border: 1pt solid #000;
+    padding: 3pt 6pt;
+    margin: 4pt 0;
+    font-size: 9.5pt;
+  }
+  .print-sheet .ps-two {
+    display: flex;
+    gap: 8pt;
+    align-items: flex-start;
+  }
+  .print-sheet .ps-block {
+    flex: 1;
+    min-width: 0;
+  }
+  .print-sheet .ps-empty {
+    color: #999;
+    padding: 2pt 0;
+  }
+  .print-sheet .ps-table tr {
+    break-inside: avoid;
+  }
+
   @page {
     size: A4 portrait;
     margin: 10mm;
@@ -992,14 +1167,22 @@ input[type='number'] {
   /* let the content use the full sheet — the 940px screen cap wastes paper.
      Flex column + a fixed page height means the Notes card (flex: 1 below) can
      stretch down to fill whatever room the tables above didn't use, instead of
-     the sheet just stopping partway down a mostly-blank page. */
+     the sheet just stopping partway down a mostly-blank page.
+
+     A light frame + inner padding keeps the table off the page margin, so the
+     content clearly sits INSIDE a bordered sheet instead of glued to the edge
+     (applies to both Rojmel and Shakkarpara prints). */
   .app-main > div,
   .app-main .mx-auto {
     max-width: none !important;
     margin: 0 !important;
     display: flex !important;
     flex-direction: column !important;
-    min-height: 277mm !important; /* A4 minus the 10mm @page margin on each side */
+    box-sizing: border-box !important;
+    min-height: 273mm !important; /* A4 printable (277mm) less a little bottom room */
+    border: 0.75pt solid #999 !important;
+    border-radius: 2pt !important;
+    padding: 5mm 6mm !important; /* the "start the table from inside" gap */
   }
 
   /* values print as text, not as boxes */
@@ -1086,7 +1269,9 @@ input[type='number'] {
     flex: 1 1 auto !important;
     display: flex !important;
     flex-direction: column !important;
-    min-height: 45mm !important;
+    /* trimmed from 45mm to give back the vertical room the new print frame +
+       padding takes, so a full Shakkarpara batch still lands on one page */
+    min-height: 32mm !important;
     margin-top: 6px !important;
   }
   .notes-fill {

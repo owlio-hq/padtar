@@ -12,9 +12,11 @@ interface NumberFieldProps {
   min?: number
   /**
    * Marks this as a day-to-day entry box, so pressing Enter jumps to the next
-   * one (see the Enter handler on the batch/day forms).
+   * one (see the Enter handler on the batch/day forms). Pass a string to keep a
+   * column in its own vertical run — e.g. Opening jumps to the next Opening, not
+   * across to Closing. `true` uses the default (unnamed) group.
    */
-  entryFlow?: boolean
+  entryFlow?: boolean | string
   /** Focus + select on mount (used by popups so the value is typeable at once). */
   autoFocus?: boolean
 }
@@ -63,7 +65,7 @@ export function NumberField({
       className={className}
       placeholder={placeholder}
       aria-label={ariaLabel}
-      data-entry-flow={entryFlow ? '' : undefined}
+      data-entry-flow={entryFlow === undefined || entryFlow === false ? undefined : typeof entryFlow === 'string' ? entryFlow : ''}
       autoFocus={autoFocus}
       value={text}
       onFocus={(e) => e.target.select()}

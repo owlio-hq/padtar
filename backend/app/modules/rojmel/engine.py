@@ -20,6 +20,8 @@ class SalesLine:
     product: str
     rate: float
     qty: float
+    opening_pic: float = 0.0
+    closing_pic: float = 0.0
 
 
 @dataclass
@@ -35,6 +37,9 @@ class ComputedSalesLine:
     rate: float
     qty: float
     total: float
+    opening_pic: float  # OPP.PIC — morning count (typed)
+    closing_pic: float  # CLO.PIC — evening count (typed)
+    net_pic: float      # = opening_pic - closing_pic (can go negative)
 
 
 @dataclass
@@ -51,7 +56,18 @@ def sales_line_total(rate: float, qty: float) -> float:
 
 
 def compute_day(sales_lines: list[SalesLine], income_lines: list[MoneyLine], expense_lines: list[MoneyLine]) -> DayResult:
-    computed_sales = [ComputedSalesLine(s.product, s.rate, s.qty, sales_line_total(s.rate, s.qty)) for s in sales_lines]
+    computed_sales = [
+        ComputedSalesLine(
+            product=s.product,
+            rate=s.rate,
+            qty=s.qty,
+            total=sales_line_total(s.rate, s.qty),
+            opening_pic=s.opening_pic,
+            closing_pic=s.closing_pic,
+            net_pic=net_pic(s.opening_pic, s.closing_pic),  # NET.PIC = opening − closing
+        )
+        for s in sales_lines
+    ]
 
     factory_sales = 0.0
     for line in computed_sales:

@@ -10,6 +10,10 @@ import { useCallback, useRef } from 'react'
  *
  * Boxes opt in with `entryFlow` on NumberField (renders `data-entry-flow`);
  * read-only cells like the auto Oil Vaprayel usage are skipped for free.
+ *
+ * The attribute's VALUE is a group: Enter only moves within the same group, so a
+ * column like Opening flows straight down to the next Opening instead of hopping
+ * sideways into Closing. The default (unnamed) group is the empty string.
  */
 export function useEntryFlow<T extends HTMLElement>() {
   const containerRef = useRef<T>(null)
@@ -20,9 +24,10 @@ export function useEntryFlow<T extends HTMLElement>() {
     if (!target.matches?.('[data-entry-flow]')) return
     e.preventDefault() // don't submit anything
 
+    const group = target.getAttribute('data-entry-flow')
     const boxes = Array.from(
       containerRef.current?.querySelectorAll<HTMLInputElement>('[data-entry-flow]') ?? [],
-    ).filter((el) => !el.disabled && el.offsetParent !== null)
+    ).filter((el) => !el.disabled && el.offsetParent !== null && el.getAttribute('data-entry-flow') === group)
 
     const next = boxes[boxes.indexOf(target as HTMLInputElement) + 1]
     if (next) {

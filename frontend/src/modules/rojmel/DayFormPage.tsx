@@ -2,36 +2,44 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Plus, Trash2, FileSpreadsheet, FileText, Printer, Pencil, Lock,
-  ShoppingCart, TrendingUp, TrendingDown, Calendar, type LucideIcon,
+  Plus, Trash2, FileSpreadsheet, FileText, Printer, Pencil, Lock, Save,
+  ShoppingCart, TrendingUp, TrendingDown, Calendar, Wallet, HandCoins, type LucideIcon,
 } from 'lucide-react'
 import { rojmelApi } from './api'
 import { computeDay } from './calc'
-import type { DayInput, MoneyLine, SalesLine } from './types'
+import type { CarryForwardLine, DayInput, MoneyLine, SalesLine } from './types'
 import { ProductEditDialog, type ApplyMode } from './ProductEditDialog'
+import { RojmelPrintSheet } from './RojmelPrintSheet'
 import { useAuth } from '../../auth/AuthContext'
 import { useLabels } from '../../i18n/LabelsContext'
 import { PageHeader } from '../../components/PageHeader'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { FieldEditDialog } from '../../components/FieldEditDialog'
 import { NumberField } from '../../components/NumberField'
 import { NotesGrid } from '../../components/NotesGrid'
 import { useEntryFlow } from '../../components/useEntryFlow'
 import { useUnsavedGuard } from '../../components/useUnsavedGuard'
+import { useSaveShortcut } from '../../components/useSaveShortcut'
+import { saveExport } from '../../system/saveExport'
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+const STOCK_UNLOCK_MS = 5 * 60 * 1000
+
 function MoneyLinesEditor({
   title,
   color,
   icon: Icon,
+  tone,
   lines,
   onChange,
 }: {
   title: string
   color: string
   icon: LucideIcon
+  tone: 'income' | 'expense'
   lines: MoneyLine[]
   onChange: (lines: MoneyLine[]) => void
 }) {
@@ -82,7 +90,7 @@ function MoneyLinesEditor({
                   <input className="field-inline" value={l.description} onChange={(e) => update(i, { description: e.target.value })} placeholder="What for…" />
                 </td>
                 <td className="col-editable">
-                  <NumberField className="field-inline" value={l.amount} onChange={(v) => update(i, { amount: v })} ariaLabel="Amount" />
+                  <NumberField className={`field-inline money-${tone}`} value={l.amount} onChange={(v) => update(i, { amount: v })} ariaLabel="Amount" />
                 </td>
                 <td className="cell-edit">
                   <input className="field-inline" value={l.note} onChange={(e) => update(i, { note: e.target.value })} placeholder="Note" />
@@ -127,11 +135,14 @@ export function DayFormPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { t } = useLabels()
-  const { requireEdit } = useAuth()
+  const { requireEdit, lockEdit } = useAuth()
   const entryFlow = useEntryFlow<HTMLDivElement>()
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [pendingRemoveSales, setPendingRemoveSales] = useState<number | null>(null)
   const [editing, setEditing] = useState<{ index: number; isNew: boolean } | null>(null)
+  const [cfEdit, setCfEdit] = useState<number | null>(null)
+  const [stockUnlocked, setStockUnlocked] = useState(false)
+  const stockTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const { data: existing } = useQuery({
     queryKey: ['rojmel-day', dayId],
@@ -149,12 +160,18 @@ export function DayFormPage() {
   const [salesLines, setSalesLines] = useState<SalesLine[]>([])
   const [incomeLines, setIncomeLines] = useState<MoneyLine[]>([])
   const [expenseLines, setExpenseLines] = useState<MoneyLine[]>([])
+  const [carryForward, setCarryForward] = useState<CarryForwardLine[]>([])
   const seeded = useRef(false)
 
   useEffect(() => {
     if (!isNew || seeded.current || !defaultProducts) return
     seeded.current = true
-    setSalesLines(defaultProducts.map((p) => ({ product: p.name, rate: p.rate, qty: 0 })))
+    setSalesLines(defaultProducts.map((p) => ({ product: p.name, rate: p.rate, qty: 0, opening_pic: 0, closing_pic: 0 })))
+    // seed the two sample carry-forward names the client asked for
+    setCarryForward([
+      { name: 'Chirag bhai', amount: 0 },
+      { name: 'Chetna ben', amount: 0 },
+    ])
   }, [isNew, defaultProducts])
 
   useEffect(() => {
@@ -164,7 +181,10 @@ export function DayFormPage() {
     setSalesLines(existing.sales_lines)
     setIncomeLines(existing.income_lines)
     setExpenseLines(existing.expense_lines)
+    setCarryForward(existing.carry_forward_lines)
   }, [existing])
+
+  useEffect(() => () => clearTimeout(stockTimer.current), [])
 
   const { lines, factorySales, totalIncome, totalExpense, cashOnHand } = computeDay(salesLines, incomeLines, expenseLines)
 
@@ -201,7 +221,7 @@ export function DayFormPage() {
   }
   async function openAddProduct() {
     if (!(await requireEdit())) return
-    setSalesLines((rows) => [...rows, { product: '', rate: 0, qty: 0 }])
+    setSalesLines((rows) => [...rows, { product: '', rate: 0, qty: 0, opening_pic: 0, closing_pic: 0 }])
     setEditing({ index: salesLines.length, isNew: true })
   }
   async function requestRemoveSales(index: number) {
@@ -209,6 +229,18 @@ export function DayFormPage() {
   }
   async function requestDeleteDay() {
     if (await requireEdit()) setConfirmDelete(true)
+  }
+
+  // Opening (OPP.PIC) is locked in its own 'stock' scope so unlocking it does NOT
+  // loosen rate edits. One unlock keeps every opening cell editable for 5 minutes.
+  async function unlockStock() {
+    if (!(await requireEdit('stock'))) return
+    setStockUnlocked(true)
+    clearTimeout(stockTimer.current)
+    stockTimer.current = setTimeout(() => {
+      setStockUnlocked(false)
+      lockEdit('stock')
+    }, STOCK_UNLOCK_MS)
   }
 
   async function applyProductEdit(index: number, patch: { product: string; rate: number }, mode: ApplyMode) {
@@ -230,12 +262,40 @@ export function DayFormPage() {
     setEditing(null)
   }
 
+  // ---- carry-forward: name is free-edit, amount is locked behind the admin password ----
+  function updateCarry(i: number, patch: Partial<CarryForwardLine>) {
+    setCarryForward((rows) => rows.map((row, idx) => (idx === i ? { ...row, ...patch } : row)))
+  }
+  async function openCarryAmount(index: number) {
+    if (await requireEdit()) setCfEdit(index)
+  }
+  function closeCarryAmount() {
+    setCfEdit(null)
+    lockEdit() // re-lock immediately, next amount edit re-prompts
+  }
+  async function removeCarry(index: number) {
+    if (await requireEdit()) setCarryForward((rows) => rows.filter((_, i) => i !== index))
+  }
+
   function buildPayload(): DayInput {
-    return { date, notes: notes || null, sales_lines: salesLines, income_lines: incomeLines, expense_lines: expenseLines }
+    return {
+      date,
+      notes: notes || null,
+      sales_lines: salesLines,
+      income_lines: incomeLines,
+      expense_lines: expenseLines,
+      carry_forward_lines: carryForward,
+    }
   }
 
   function handleSave() {
     saveMutation.mutate(buildPayload())
+  }
+  useSaveShortcut(handleSave, !saveMutation.isPending)
+
+  async function exportFile(kind: 'excel' | 'pdf') {
+    const ext = kind === 'excel' ? 'xlsx' : 'pdf'
+    await saveExport(`/api/rojmel/days/${dayId}/export/${kind}`, `rojmel_${date}_${dayId}.${ext}`)
   }
 
   // What the worker actually typed — server-added fields (id, total) are left
@@ -243,9 +303,10 @@ export function DayFormPage() {
   const dirtyKey = JSON.stringify({
     date,
     notes,
-    sales: salesLines.map((s) => [s.product, s.rate, s.qty]),
+    sales: salesLines.map((s) => [s.product, s.rate, s.qty, s.opening_pic, s.closing_pic]),
     income: incomeLines.map((m) => [m.description, m.amount, m.note]),
     expense: expenseLines.map((m) => [m.description, m.amount, m.note]),
+    carry: carryForward.map((c) => [c.name, c.amount]),
   })
   dirtyKeyRef.current = dirtyKey
 
@@ -260,200 +321,338 @@ export function DayFormPage() {
   markSavedRef.current = guard.markSaved
 
   return (
-    <div className="mx-auto" style={{ maxWidth: 940 }} ref={entryFlow.containerRef} onKeyDown={entryFlow.onKeyDown}>
-      <PageHeader
-        title={isNew ? 'New day' : `Day — ${date}`}
-        subtitle="Daily sales and cash"
-        backTo="/rojmel"
-        backLabel={t('rojmel.title', 'Rojmel')}
-        actions={
-          !isNew ? (
+    <>
+      <div className="rojmel-screen mx-auto" style={{ maxWidth: 940 }} ref={entryFlow.containerRef} onKeyDown={entryFlow.onKeyDown}>
+        <PageHeader
+          title={isNew ? 'New day' : `Day — ${date}`}
+          subtitle="Daily sales and cash"
+          backTo="/rojmel"
+          backLabel={t('rojmel.title', 'Rojmel')}
+          actions={
             <>
-              <button className="btn btn-outline" onClick={() => window.print()} title="Print this day">
-                <Printer size={14} />
-                Print
+              <button className="btn btn-primary" onClick={handleSave} disabled={saveMutation.isPending} title="Save (Ctrl+S)">
+                <Save size={14} />
+                {saveMutation.isPending ? 'Saving…' : 'Save'}
               </button>
-              <a href={`/api/rojmel/days/${dayId}/export/excel`} className="btn btn-outline" title="Export this day to Excel">
-                <FileSpreadsheet size={14} style={{ color: 'var(--tint-total-text)' }} />
-                Excel
-              </a>
-              <a href={`/api/rojmel/days/${dayId}/export/pdf`} className="btn btn-outline" title="Export this day to PDF">
-                <FileText size={14} style={{ color: 'var(--tint-rate-text)' }} />
-                PDF
-              </a>
-              <button className="btn btn-danger" onClick={requestDeleteDay}>
-                <Trash2 size={14} />
-                Delete
-              </button>
-            </>
-          ) : undefined
-        }
-      />
-
-      {saveMutation.isError && (
-        <div
-          className="mb-4 rounded px-3 py-2 text-sm"
-          style={{ border: '1px solid var(--tint-negative-text)', color: 'var(--tint-negative-text)', backgroundColor: 'var(--tint-negative-bg)' }}
-        >
-          {(saveMutation.error as Error).message.includes('409')
-            ? 'A Rojmel entry already exists for this date.'
-            : 'Could not save — please try again.'}
-        </div>
-      )}
-
-      <div className="mb-5 grid grid-cols-4 gap-3">
-        <div className="field-card">
-          <label className="field-label flex items-center gap-1.5">
-            <Calendar size={13} />
-            {t('rojmel.date', 'Date')}
-          </label>
-          <input type="date" className="field" value={date} onChange={(e) => setDate(e.target.value)} />
-        </div>
-      </div>
-
-      <div className="card category-card overflow-hidden" style={{ '--cat': '#3b82f6' } as React.CSSProperties}>
-        <div className="category-strip">
-          <span className="category-title">
-            <ShoppingCart size={16} />
-            Daily sales
-          </span>
-          <button onClick={openAddProduct} className="btn btn-cat btn-sm" style={{ borderWidth: 1, borderStyle: 'solid' }} title="Add a product">
-            <Plus size={13} />
-            Add product
-          </button>
-        </div>
-        <table className="data-table entry-table">
-          <colgroup>
-            <col />
-            <col style={{ width: '22%' }} />
-            <col style={{ width: '20%' }} />
-            <col style={{ width: '16%' }} />
-            <col style={{ width: 76 }} />
-          </colgroup>
-          <thead>
-            <tr>
-              <th>{t('rojmel.product', 'Product')}</th>
-              <th className="col-locked-head">
-                {t('rojmel.rate', 'Rate')} (₹)
-                <Lock className="col-lock-head-ico" size={11} />
-              </th>
-              <th className="col-editable-head">{t('rojmel.qty', 'Pic')}</th>
-              <th className="col-total-head">{t('rojmel.total', 'Total')}</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {salesLines.map((s, i) => (
-              <tr key={i} className="reveal-row">
-                <td style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.product || <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
-                <td className="col-locked">
-                  {s.rate || 0}
-                </td>
-                <td className="col-editable">
-                  <NumberField className="field-inline" value={s.qty} onChange={(v) => updateSalesLine(i, { qty: v })} ariaLabel="Pieces" entryFlow />
-                </td>
-                <td className="col-total">₹{lines[i]?.total.toFixed(2)}</td>
-                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <button onClick={() => openEditProduct(i)} className="icon-btn reveal-target" aria-label="Edit product" title="Edit name / rate (password)">
-                    <Pencil size={14} />
+              {!isNew && (
+                <>
+                  <button className="btn btn-outline" onClick={() => window.print()} title="Print this day">
+                    <Printer size={14} />
+                    Print
                   </button>
-                  <button onClick={() => requestRemoveSales(i)} className="icon-btn icon-btn-danger reveal-target" aria-label="Remove product" title="Remove (password)">
+                  <button className="btn btn-outline" onClick={() => exportFile('excel')} title="Export this day to Excel">
+                    <FileSpreadsheet size={14} style={{ color: 'var(--tint-total-text)' }} />
+                    Excel
+                  </button>
+                  <button className="btn btn-outline" onClick={() => exportFile('pdf')} title="Export this day to PDF">
+                    <FileText size={14} style={{ color: 'var(--tint-rate-text)' }} />
+                    PDF
+                  </button>
+                  <button className="btn btn-danger" onClick={requestDeleteDay}>
                     <Trash2 size={14} />
+                    Delete
                   </button>
-                </td>
-              </tr>
-            ))}
-            {salesLines.length > 0 && (
-              <tr className="subtotal-row">
-                <td colSpan={3}>{t('rojmel.factory_sales', 'Factory Sales')}</td>
-                <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                  ₹{factorySales.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </td>
-                <td />
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="mt-5 flex flex-col gap-5 sm:flex-row">
-        <MoneyLinesEditor
-          title={`${t('rojmel.income', 'Income')} (besides factory sales)`}
-          color="#10b981"
-          icon={TrendingUp}
-          lines={incomeLines}
-          onChange={setIncomeLines}
+                </>
+              )}
+            </>
+          }
         />
-        <MoneyLinesEditor
-          title={t('rojmel.expense', 'Kharcho')}
-          color="#ef4444"
-          icon={TrendingDown}
-          lines={expenseLines}
-          onChange={setExpenseLines}
-        />
-      </div>
 
-      <NotesGrid value={notes || null} onChange={(v) => setNotes(v ?? '')} />
+        {saveMutation.isError && (
+          <div
+            className="mb-4 rounded px-3 py-2 text-sm"
+            style={{ border: '1px solid var(--tint-negative-text)', color: 'var(--tint-negative-text)', backgroundColor: 'var(--tint-negative-bg)' }}
+          >
+            {(saveMutation.error as Error).message.includes('409')
+              ? 'A Rojmel entry already exists for this date.'
+              : 'Could not save — please try again.'}
+          </div>
+        )}
 
-      <div className="card mt-5 flex items-center justify-between p-4">
-        <div className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          {t('rojmel.income', 'Income')}: <span style={{ color: 'var(--text)', fontWeight: 500 }}>₹{totalIncome.toFixed(2)}</span> ·{' '}
-          {t('rojmel.expense', 'Expense')}: <span style={{ color: 'var(--text)', fontWeight: 500 }}>₹{totalExpense.toFixed(2)}</span>
+        {/* Top cards: Date + the three live money figures, like the Shakkarpara header. */}
+        <div className="mb-5 grid grid-cols-4 gap-3">
+          <div className="field-card" style={{ '--cat': '#94a3b8' } as React.CSSProperties}>
+            <label className="field-label flex items-center gap-1.5">
+              <Calendar size={13} />
+              {t('rojmel.date', 'Date')}
+            </label>
+            <input type="date" className="field" value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+          <div className="field-card" style={{ '--cat': '#10b981' } as React.CSSProperties}>
+            <label className="field-label flex items-center gap-1.5">
+              <TrendingUp size={13} />
+              {t('rojmel.income', 'Income')} (₹)
+            </label>
+            <div className="field readonly-value">{totalIncome.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          </div>
+          <div className="field-card" style={{ '--cat': '#ef4444' } as React.CSSProperties}>
+            <label className="field-label flex items-center gap-1.5">
+              <TrendingDown size={13} />
+              {t('rojmel.expense', 'Kharcho')} (₹)
+            </label>
+            <div className="field readonly-value">{totalExpense.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          </div>
+          <div className="field-card" style={{ '--cat': '#6366f1' } as React.CSSProperties}>
+            <label className="field-label flex items-center gap-1.5">
+              <Wallet size={13} />
+              {t('rojmel.cash_on_hand', 'Cash on Hand')} (₹)
+            </label>
+            <div className="field readonly-value" style={{ color: 'var(--tint-total-text)' }}>
+              {cashOnHand.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{t('rojmel.cash_on_hand', 'Cash on Hand')}</span>
-          <span className="pill pill-accent" style={{ fontSize: 15, padding: '5px 12px' }}>₹{cashOnHand.toFixed(2)}</span>
+
+        <div className="card category-card overflow-hidden" style={{ '--cat': '#3b82f6' } as React.CSSProperties}>
+          <div className="category-strip">
+            <span className="category-title">
+              <ShoppingCart size={16} />
+              Daily sales
+            </span>
+            <button onClick={openAddProduct} className="btn btn-cat btn-sm" style={{ borderWidth: 1, borderStyle: 'solid' }} title="Add a product">
+              <Plus size={13} />
+              Add product
+            </button>
+          </div>
+          <table className="data-table entry-table">
+            <colgroup>
+              <col />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: 60 }} />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>{t('rojmel.product', 'Product')}</th>
+                <th className="col-locked-head">
+                  {t('rojmel.rate', 'Rate')} (₹)
+                  <Lock className="col-lock-head-ico" size={11} />
+                </th>
+                <th className="col-editable-head">{t('rojmel.qty', 'Sales')}</th>
+                <th className="col-locked-head" title="Opening pieces (morning count)">
+                  OPP.PIC
+                  <Lock className="col-lock-head-ico" size={11} />
+                </th>
+                <th className="col-locked-head" title="Closing pieces (evening count)">
+                  CLO.PIC
+                  <Lock className="col-lock-head-ico" size={11} />
+                </th>
+                <th title="Net = opening − closing">NET.PIC</th>
+                <th className="col-total-head">{t('rojmel.total', 'Total')}</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {salesLines.map((s, i) => {
+                const net = lines[i]?.net_pic ?? 0
+                return (
+                  <tr key={i} className="reveal-row">
+                    <td style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.product || <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
+                    <td className="col-locked">{s.rate || 0}</td>
+                    <td className="col-editable">
+                      <NumberField className="field-inline" value={s.qty} onChange={(v) => updateSalesLine(i, { qty: v })} ariaLabel="Sales pieces" entryFlow />
+                    </td>
+                    <td className="col-stock">
+                      {stockUnlocked ? (
+                        <NumberField className="field-inline" value={s.opening_pic} onChange={(v) => updateSalesLine(i, { opening_pic: v })} ariaLabel="Opening pieces" entryFlow="opp" />
+                      ) : (
+                        <button className="stock-locked" onClick={unlockStock} title="Click to edit opening (password needed)">
+                          {s.opening_pic || 0}
+                        </button>
+                      )}
+                    </td>
+                    <td className="col-stock">
+                      {stockUnlocked ? (
+                        <NumberField className="field-inline" value={s.closing_pic} onChange={(v) => updateSalesLine(i, { closing_pic: v })} ariaLabel="Closing pieces" entryFlow="clo" />
+                      ) : (
+                        <button className="stock-locked" onClick={unlockStock} title="Click to edit closing (password needed)">
+                          {s.closing_pic || 0}
+                        </button>
+                      )}
+                    </td>
+                    <td className="col-total" style={{ color: net < 0 ? 'var(--net-neg)' : 'var(--net-pos)', fontWeight: 700 }}>{net}</td>
+                    <td className="col-total">₹{lines[i]?.total.toFixed(2)}</td>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <button onClick={() => openEditProduct(i)} className="icon-btn reveal-target" aria-label="Edit product" title="Edit name / rate (password)">
+                        <Pencil size={14} />
+                      </button>
+                      <button onClick={() => requestRemoveSales(i)} className="icon-btn icon-btn-danger reveal-target" aria-label="Remove product" title="Remove (password)">
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+              {salesLines.length > 0 && (
+                <tr className="subtotal-row">
+                  <td colSpan={6}>{t('rojmel.factory_sales', 'Factory Sales')}</td>
+                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                    ₹{factorySales.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td />
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
-      </div>
 
-      <div className="mt-5 flex justify-end">
-        <button onClick={handleSave} disabled={saveMutation.isPending} className="btn btn-primary">
-          {saveMutation.isPending ? 'Saving…' : 'Save day'}
-        </button>
-      </div>
+        <div className="mt-5 flex flex-col gap-5 sm:flex-row">
+          <MoneyLinesEditor
+            title={t('rojmel.income', 'Income')}
+            color="#10b981"
+            icon={TrendingUp}
+            tone="income"
+            lines={incomeLines}
+            onChange={setIncomeLines}
+          />
+          <MoneyLinesEditor
+            title={t('rojmel.expense', 'Kharcho')}
+            color="#ef4444"
+            icon={TrendingDown}
+            tone="expense"
+            lines={expenseLines}
+            onChange={setExpenseLines}
+          />
+        </div>
 
-      {guard.dialog}
+        <NotesGrid value={notes || null} onChange={(v) => setNotes(v ?? '')} />
 
-      {editing && (
-        <ProductEditDialog
-          product={salesLines[editing.index]}
-          isNewRow={editing.isNew}
-          onSave={(patch, mode) => applyProductEdit(editing.index, patch, mode)}
-          onCancel={() => {
-            if (editing.isNew && !salesLines[editing.index]?.product) {
-              setSalesLines((rows) => rows.filter((_, i) => i !== editing.index))
-            }
-            setEditing(null)
+        {/* Carry-forward: informational (not in any total), like the block below the
+            totals in the Excel. Name is free-edit; the amount is admin-locked. */}
+        <div className="card category-card mt-5 overflow-hidden" style={{ '--cat': '#8b5cf6' } as React.CSSProperties}>
+          <div className="category-strip">
+            <span className="category-title">
+              <HandCoins size={16} />
+              Carry Forward
+            </span>
+            <button
+              onClick={() => setCarryForward((rows) => [...rows, { name: '', amount: 0 }])}
+              className="btn btn-cat btn-sm"
+              style={{ borderWidth: 1, borderStyle: 'solid' }}
+              title="Add a name"
+            >
+              <Plus size={13} />
+              Add
+            </button>
+          </div>
+          <table className="data-table entry-table">
+            <colgroup>
+              <col />
+              <col style={{ width: '30%' }} />
+              <col style={{ width: 44 }} />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th className="col-locked-head" style={{ textAlign: 'right' }}>
+                  Carry forward (₹)
+                  <Lock className="col-lock-head-ico" size={11} />
+                </th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {carryForward.map((c, i) => (
+                <tr key={i} className="reveal-row">
+                  <td className="col-editable">
+                    <input className="field-inline" value={c.name} onChange={(e) => updateCarry(i, { name: e.target.value })} placeholder="Name…" />
+                  </td>
+                  <td className="col-stock">
+                    <button className="stock-locked" onClick={() => openCarryAmount(i)} title="Click to edit (password needed)">
+                      {c.amount || 0}
+                    </button>
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button onClick={() => removeCarry(i)} className="icon-btn icon-btn-danger reveal-target" aria-label="Remove" title="Remove (password)">
+                      <Trash2 size={15} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {carryForward.length === 0 && (
+                <tr>
+                  <td colSpan={3} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '14px', fontSize: 12 }}>
+                    None yet
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {guard.dialog}
+
+        {editing && (
+          <ProductEditDialog
+            product={salesLines[editing.index]}
+            isNewRow={editing.isNew}
+            onSave={(patch, mode) => applyProductEdit(editing.index, patch, mode)}
+            onCancel={() => {
+              if (editing.isNew && !salesLines[editing.index]?.product) {
+                setSalesLines((rows) => rows.filter((_, i) => i !== editing.index))
+              }
+              setEditing(null)
+            }}
+          />
+        )}
+
+        {cfEdit !== null && (
+          <FieldEditDialog
+            title="Carry forward amount"
+            label="Amount (₹)"
+            value={carryForward[cfEdit]?.amount ?? 0}
+            onSave={(value) => {
+              updateCarry(cfEdit, { amount: value })
+              closeCarryAmount()
+            }}
+            onCancel={closeCarryAmount}
+          />
+        )}
+
+        <ConfirmDialog
+          open={confirmDelete}
+          title="Delete day?"
+          message={`The entry from ${date} will be permanently removed.`}
+          onConfirm={() => {
+            setConfirmDelete(false)
+            deleteMutation.mutate()
           }}
+          onCancel={() => setConfirmDelete(false)}
         />
-      )}
 
-      <ConfirmDialog
-        open={confirmDelete}
-        title="Delete day?"
-        message={`The entry from ${date} will be permanently removed.`}
-        onConfirm={() => {
-          setConfirmDelete(false)
-          deleteMutation.mutate()
-        }}
-        onCancel={() => setConfirmDelete(false)}
-      />
+        <ConfirmDialog
+          open={pendingRemoveSales !== null}
+          title="Remove product?"
+          message={
+            pendingRemoveSales !== null && salesLines[pendingRemoveSales]?.product
+              ? `"${salesLines[pendingRemoveSales].product}" will be removed from this day.`
+              : 'This row will be removed from this day.'
+          }
+          confirmLabel="Remove"
+          onConfirm={() => {
+            if (pendingRemoveSales !== null) setSalesLines((rows) => rows.filter((_, idx) => idx !== pendingRemoveSales))
+            setPendingRemoveSales(null)
+          }}
+          onCancel={() => setPendingRemoveSales(null)}
+        />
+      </div>
 
-      <ConfirmDialog
-        open={pendingRemoveSales !== null}
-        title="Remove product?"
-        message={
-          pendingRemoveSales !== null && salesLines[pendingRemoveSales]?.product
-            ? `"${salesLines[pendingRemoveSales].product}" will be removed from this day.`
-            : 'This row will be removed from this day.'
-        }
-        confirmLabel="Remove"
-        onConfirm={() => {
-          if (pendingRemoveSales !== null) setSalesLines((rows) => rows.filter((_, idx) => idx !== pendingRemoveSales))
-          setPendingRemoveSales(null)
-        }}
-        onCancel={() => setPendingRemoveSales(null)}
+      <RojmelPrintSheet
+        date={date}
+        lines={lines}
+        factorySales={factorySales}
+        incomeLines={incomeLines}
+        expenseLines={expenseLines}
+        totalIncome={totalIncome}
+        totalExpense={totalExpense}
+        cashOnHand={cashOnHand}
+        notes={notes || null}
+        carryForward={carryForward}
       />
-    </div>
+    </>
   )
 }

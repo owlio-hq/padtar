@@ -36,6 +36,8 @@ def get_db():
 _ADDITIVE_COLUMNS = [
     ("shakkarpara_batches", "extra_per_unit", "FLOAT NOT NULL DEFAULT 0.0"),
     ("shakkarpara_batch_ingredients", "category", "VARCHAR NOT NULL DEFAULT 'Raw Material'"),
+    ("rojmel_sales_lines", "opening_pic", "FLOAT NOT NULL DEFAULT 0.0"),
+    ("rojmel_sales_lines", "closing_pic", "FLOAT NOT NULL DEFAULT 0.0"),
 ]
 
 
@@ -49,6 +51,10 @@ def _apply_additive_migrations():
             cols = {c["name"] for c in inspector.get_columns(table)}
             if column not in cols:
                 conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {coldef}"))
+                # closing_pic used to be derived from qty (pieces sold); backfill existing
+                # rows so upgrading doesn't silently change their NET.PIC.
+                if (table, column) == ("rojmel_sales_lines", "closing_pic"):
+                    conn.execute(text("UPDATE rojmel_sales_lines SET closing_pic = qty"))
 
 
 def init_db():

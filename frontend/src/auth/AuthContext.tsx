@@ -1,30 +1,41 @@
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react'
 import { authApi } from '../api/client'
 
+/**
+ * Unlock scopes are kept separate on purpose. Unlocking the stock columns
+ * (opening counts, which get typed often) must NOT also loosen rate/structural
+ * edits — those stay individually gated. So each scope has its own timer.
+ */
+export type EditScope = 'default' | 'stock'
+
 interface AuthContextValue {
   loggedIn: boolean
   login: (password: string) => Promise<boolean>
   logout: () => void
   /**
-   * Ask for the edit password (unless already unlocked this session for a short
-   * window). Resolves true if the correct password was entered, false if the
-   * user cancelled or it was wrong. Restricted actions call this before running.
+   * Ask for the edit password (unless the given scope is already unlocked for a
+   * short window). Resolves true if the correct password was entered, false if
+   * the user cancelled or it was wrong. Restricted actions call this first.
    */
-  requireEdit: () => Promise<boolean>
-  /** Immediately end edit access, so the next restricted action re-prompts. */
-  lockEdit: () => void
+  requireEdit: (scope?: EditScope) => Promise<boolean>
+  /** Immediately end edit access for a scope, so the next action re-prompts. */
+  lockEdit: (scope?: EditScope) => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 const LOGIN_KEY = 'padtar.loggedIn'
-// Once the edit password is verified, keep edit mode unlocked for this long so
+// Once the edit password is verified, keep that scope unlocked for this long so
 // the worker isn't re-prompted for every single field in one editing session.
-const EDIT_UNLOCK_MS = 3 * 60 * 1000
+const UNLOCK_MS: Record<EditScope, number> = {
+  default: 3 * 60 * 1000,
+  stock: 5 * 60 * 1000, // opening counts are entered across many products at once
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [loggedIn, setLoggedIn] = useState(() => sessionStorage.getItem(LOGIN_KEY) === '1')
-  const editUnlockedUntil = useRef(0)
+  const unlockedUntil = useRef<Record<EditScope, number>>({ default: 0, stock: 0 })
+  const pendingScope = useRef<EditScope>('default')
 
   // The edit-password modal is driven by a pending promise resolver.
   const [askOpen, setAskOpen] = useState(false)
@@ -43,12 +54,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     setLoggedIn(false)
-    editUnlockedUntil.current = 0
+    unlockedUntil.current = { default: 0, stock: 0 }
     sessionStorage.removeItem(LOGIN_KEY)
   }, [])
 
-  const requireEdit = useCallback(() => {
-    if (Date.now() < editUnlockedUntil.current) return Promise.resolve(true)
+  const requireEdit = useCallback((scope: EditScope = 'default') => {
+    if (Date.now() < unlockedUntil.current[scope]) return Promise.resolve(true)
+    pendingScope.current = scope
     setAskError(false)
     setAskOpen(true)
     return new Promise<boolean>((resolve) => {
@@ -61,7 +73,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { ok } = await authApi.verifyEdit(password)
       if (ok) {
-        editUnlockedUntil.current = Date.now() + EDIT_UNLOCK_MS
+        const scope = pendingScope.current
+        unlockedUntil.current[scope] = Date.now() + UNLOCK_MS[scope]
         setAskOpen(false)
         resolverRef.current?.(true)
         resolverRef.current = null
@@ -79,8 +92,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     resolverRef.current = null
   }, [])
 
-  const lockEdit = useCallback(() => {
-    editUnlockedUntil.current = 0
+  const lockEdit = useCallback((scope: EditScope = 'default') => {
+    unlockedUntil.current[scope] = 0
   }, [])
 
   return (
