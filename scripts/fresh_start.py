@@ -95,6 +95,7 @@ _CHILD_TABLES = [
     ("rojmel_sales_lines", "day_id", "rojmel_days"),
     ("rojmel_income_lines", "day_id", "rojmel_days"),
     ("rojmel_expense_lines", "day_id", "rojmel_days"),
+    ("rojmel_carry_forward_lines", "day_id", "rojmel_days"),
     ("rojmel_day_history", "day_id", "rojmel_days"),
 ]
 

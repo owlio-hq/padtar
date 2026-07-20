@@ -279,9 +279,16 @@ def system_report_bug(payload: BugReportIn):
 if FRONTEND_DIST_DIR.exists():
     app.mount("/assets", StaticFiles(directory=FRONTEND_DIST_DIR / "assets"), name="assets")
 
+    # index.html must never be cached: it references the current build's asset
+    # filenames (index-<hash>.js/css). After an in-app update the hashes change,
+    # so a cached index.html points at files that no longer exist — the browser
+    # then renders the OLD UI until the user hard-refreshes. The /assets files
+    # themselves are safe to cache: their names change every build.
+    _NO_CACHE = {"Cache-Control": "no-store, must-revalidate"}
+
     @app.get("/{full_path:path}")
     def serve_spa(full_path: str):
         candidate = FRONTEND_DIST_DIR / full_path
         if full_path and candidate.is_file():
             return FileResponse(candidate)
-        return FileResponse(FRONTEND_DIST_DIR / "index.html")
+        return FileResponse(FRONTEND_DIST_DIR / "index.html", headers=_NO_CACHE)
