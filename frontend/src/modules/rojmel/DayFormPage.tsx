@@ -90,7 +90,7 @@ function MoneyLinesEditor({
             <col style={{ width: '22%' }} />
             <col />
             <col style={{ width: '17%' }} />
-            <col style={{ width: 44 }} />
+            <col style={{ width: 48 }} />
           </colgroup>
           <thead>
             <tr>
@@ -133,7 +133,7 @@ function MoneyLinesEditor({
                       placeholder="Note"
                     />
                   </td>
-                  <td style={{ textAlign: 'right' }}>
+                  <td className="col-actions">
                     <button onClick={() => setPendingRemove(i)} className="icon-btn icon-btn-danger reveal-target" aria-label="Remove line" title="Remove line">
                       <Trash2 size={15} />
                     </button>
@@ -457,7 +457,7 @@ export function DayFormPage() {
               <col style={{ width: '11%' }} />
               <col style={{ width: '11%' }} />
               <col style={{ width: '14%' }} />
-              <col style={{ width: 60 }} />
+              <col style={{ width: 72 }} />
             </colgroup>
             <thead>
               <tr>
@@ -510,7 +510,7 @@ export function DayFormPage() {
                     </td>
                     <td className="col-total" style={{ color: net < 0 ? 'var(--net-neg)' : 'var(--net-pos)', fontWeight: 700 }}>{net}</td>
                     <td className="col-total">₹{lines[i]?.total.toFixed(2)}</td>
-                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <td className="col-actions">
                       <button onClick={() => openEditProduct(i)} className="icon-btn reveal-target" aria-label="Edit product" title="Edit name / rate (password)">
                         <Pencil size={14} />
                       </button>
@@ -575,7 +575,7 @@ export function DayFormPage() {
             <colgroup>
               <col />
               <col style={{ width: '30%' }} />
-              <col style={{ width: 44 }} />
+              <col style={{ width: 48 }} />
             </colgroup>
             <thead>
               <tr>
@@ -605,7 +605,7 @@ export function DayFormPage() {
                         {c.amount || 0}
                       </button>
                     </td>
-                    <td style={{ textAlign: 'right' }}>
+                    <td className="col-actions">
                       <button onClick={() => removeCarry(i)} className="icon-btn icon-btn-danger reveal-target" aria-label="Remove" title="Remove (password)">
                         <Trash2 size={15} />
                       </button>

@@ -372,7 +372,7 @@ export function BatchFormPage() {
               <col style={{ width: '22%' }} />
               <col style={{ width: '20%' }} />
               <col style={{ width: '16%' }} />
-              <col style={{ width: 76 }} />
+              <col style={{ width: 72 }} />
             </colgroup>
             <thead>
               <tr>
@@ -421,7 +421,7 @@ export function BatchFormPage() {
                     )}
                   </td>
                   <td className="col-total">₹{lines[idx]?.total.toFixed(2)}</td>
-                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <td className="col-actions">
                     {!ing.is_oil_vaprayel && (
                       <>
                         <button className="icon-btn reveal-target" onClick={() => openEdit(idx)} aria-label="Edit ingredient" title="Edit rate / unit / name (password)">

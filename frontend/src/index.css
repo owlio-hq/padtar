@@ -707,6 +707,18 @@ input[type='number'] {
   width: 12ch;
 }
 
+/* Row action icons (edit / delete). The default cell padding (16px each side)
+   left too little room and the buttons spilled past the table's right edge —
+   they looked clipped. Tighter side padding + a width that actually fits two
+   26px buttons. */
+.entry-table td.col-actions,
+.entry-table th.col-actions {
+  padding-left: 4px;
+  padding-right: 10px;
+  text-align: right;
+  white-space: nowrap;
+}
+
 /* One alignment convention across both sheets: money/amounts right, rates
    centre, names and descriptions left. Declared after the column rules above so
    these win on the inputs that need them. */
