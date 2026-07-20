@@ -377,11 +377,11 @@ export function BatchFormPage() {
             <thead>
               <tr>
                 <th>Ingredient</th>
-                <th className="col-locked-head">
+                <th className="col-locked-head num-center">
                   Rate / Unit
                   <Lock className="col-lock-head-ico" size={11} />
                 </th>
-                <th className="col-editable-head">{t('shakkarpara.usage', 'Vaprash')}</th>
+                <th className="col-editable-head num-right">{t('shakkarpara.usage', 'Vaprash')}</th>
                 <th className="col-total-head">{t('shakkarpara.total', 'Total')}</th>
                 <th />
               </tr>
@@ -401,7 +401,7 @@ export function BatchFormPage() {
                   <td style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {ing.name || <span style={{ color: 'var(--text-muted)' }}>—</span>}
                   </td>
-                  <td className="col-locked">
+                  <td className="col-locked num-center">
                     {ing.rate || 0} / {ing.unit || '—'}
                   </td>
                   <td className="col-editable">
@@ -412,7 +412,7 @@ export function BatchFormPage() {
                     ) : (
                       <NumberField
                         min={0}
-                        className="field-inline"
+                        className="field-inline num-right"
                         value={ing.usage}
                         onChange={(v) => updateIngredient(idx, { usage: v })}
                         ariaLabel="Vaprash"

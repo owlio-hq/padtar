@@ -25,11 +25,12 @@ export function useEntryFlow<T extends HTMLElement>() {
     e.preventDefault() // don't submit anything
 
     const group = target.getAttribute('data-entry-flow')
+    // inputs AND textareas take part (the notes grid uses auto-growing textareas)
     const boxes = Array.from(
-      containerRef.current?.querySelectorAll<HTMLInputElement>('[data-entry-flow]') ?? [],
+      containerRef.current?.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('[data-entry-flow]') ?? [],
     ).filter((el) => !el.disabled && el.offsetParent !== null && el.getAttribute('data-entry-flow') === group)
 
-    const next = boxes[boxes.indexOf(target as HTMLInputElement) + 1]
+    const next = boxes[boxes.indexOf(target as HTMLInputElement | HTMLTextAreaElement) + 1]
     if (next) {
       next.focus()
       next.select()

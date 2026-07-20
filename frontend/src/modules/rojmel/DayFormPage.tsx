@@ -28,31 +28,46 @@ function todayIso(): string {
 
 const STOCK_UNLOCK_MS = 5 * 60 * 1000
 
+const MIN_MONEY_ROWS = 4 // always leave open lines to type into
+
+/** True once anything in the row has been filled in. */
+function moneyRowStarted(l: MoneyLine): boolean {
+  return l.amount !== 0 || l.description.trim() !== '' || l.note.trim() !== ''
+}
+
 function MoneyLinesEditor({
   title,
   color,
   icon: Icon,
-  tone,
+  flow,
   lines,
   onChange,
 }: {
   title: string
   color: string
   icon: LucideIcon
-  tone: 'income' | 'expense'
+  /** entry-flow group so Enter walks down THIS table's amount column only */
+  flow: string
   lines: MoneyLine[]
   onChange: (lines: MoneyLine[]) => void
 }) {
   const [pendingRemove, setPendingRemove] = useState<number | null>(null)
 
+  // Show at least MIN_MONEY_ROWS. The padding is display-only — buildPayload
+  // strips fully-empty rows, so nothing blank is ever saved or exported.
+  const shown: MoneyLine[] = [...lines]
+  while (shown.length < MIN_MONEY_ROWS) shown.push({ description: '', amount: 0, note: '' })
+
   function update(i: number, patch: Partial<MoneyLine>) {
-    onChange(lines.map((l, idx) => (idx === i ? { ...l, ...patch } : l)))
+    const next = [...shown]
+    next[i] = { ...next[i], ...patch }
+    onChange(next)
   }
   function add() {
-    onChange([...lines, { description: '', amount: 0, note: '' }])
+    onChange([...shown, { description: '', amount: 0, note: '' }])
   }
   function remove(i: number) {
-    onChange(lines.filter((_, idx) => idx !== i))
+    onChange(shown.filter((_, idx) => idx !== i))
   }
 
   return (
@@ -68,47 +83,64 @@ function MoneyLinesEditor({
             Add line
           </button>
         </div>
-        <table className="data-table entry-table">
+        {/* Amount first (the order they type in), then the wide Description,
+            then a compact Note. Each column gets its own band + divider. */}
+        <table className="data-table entry-table money-table">
           <colgroup>
+            <col style={{ width: '22%' }} />
             <col />
-            <col style={{ width: '26%' }} />
-            <col />
+            <col style={{ width: '17%' }} />
             <col style={{ width: 44 }} />
           </colgroup>
           <thead>
             <tr>
+              <th className="col-amt amt-cell">Amount (₹)</th>
               <th>Description</th>
-              <th className="col-editable-head" style={{ textAlign: 'right' }}>Amount (₹)</th>
-              <th>Note</th>
+              <th className="col-note">Note</th>
               <th />
             </tr>
           </thead>
           <tbody>
-            {lines.map((l, i) => (
-              <tr key={i} className="reveal-row">
-                <td className="cell-edit">
-                  <input className="field-inline" value={l.description} onChange={(e) => update(i, { description: e.target.value })} placeholder="What for…" />
-                </td>
-                <td className="col-editable">
-                  <NumberField className={`field-inline money-${tone}`} value={l.amount} onChange={(v) => update(i, { amount: v })} ariaLabel="Amount" />
-                </td>
-                <td className="cell-edit">
-                  <input className="field-inline" value={l.note} onChange={(e) => update(i, { note: e.target.value })} placeholder="Note" />
-                </td>
-                <td style={{ textAlign: 'right' }}>
-                  <button onClick={() => setPendingRemove(i)} className="icon-btn icon-btn-danger reveal-target" aria-label="Remove line" title="Remove line">
-                    <Trash2 size={15} />
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {lines.length === 0 && (
-              <tr>
-                <td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '14px', fontSize: 12 }}>
-                  None yet
-                </td>
-              </tr>
-            )}
+            {shown.map((l, i) => {
+              const started = moneyRowStarted(l)
+              return (
+                <tr key={i} className="reveal-row">
+                  {/* the missing-hint lives on the CELL, not the input: number
+                      inputs don't reliably paint a background, and lighting the
+                      whole cell is easier to spot anyway */}
+                  <td className={`col-amt${started && l.amount === 0 ? ' is-missing' : ''}`}>
+                    <NumberField
+                      className="field-inline amt-cell"
+                      value={l.amount}
+                      onChange={(v) => update(i, { amount: v })}
+                      ariaLabel="Amount"
+                      entryFlow={flow}
+                    />
+                  </td>
+                  <td className={`cell-edit${started && !l.description.trim() ? ' is-missing' : ''}`}>
+                    <input
+                      className="field-inline"
+                      value={l.description}
+                      onChange={(e) => update(i, { description: e.target.value })}
+                      placeholder="What for…"
+                    />
+                  </td>
+                  <td className={`col-note${started && !l.note.trim() ? ' is-missing' : ''}`}>
+                    <input
+                      className="field-inline note-cell"
+                      value={l.note}
+                      onChange={(e) => update(i, { note: e.target.value })}
+                      placeholder="Note"
+                    />
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button onClick={() => setPendingRemove(i)} className="icon-btn icon-btn-danger reveal-target" aria-label="Remove line" title="Remove line">
+                      <Trash2 size={15} />
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -278,13 +310,15 @@ export function DayFormPage() {
   }
 
   function buildPayload(): DayInput {
+    // The editors always show a few blank rows to type into — never save them.
+    const usedMoney = (rows: MoneyLine[]) => rows.filter(moneyRowStarted)
     return {
       date,
       notes: notes || null,
       sales_lines: salesLines,
-      income_lines: incomeLines,
-      expense_lines: expenseLines,
-      carry_forward_lines: carryForward,
+      income_lines: usedMoney(incomeLines),
+      expense_lines: usedMoney(expenseLines),
+      carry_forward_lines: carryForward.filter((c) => c.name.trim() !== '' || c.amount !== 0),
     }
   }
 
@@ -428,20 +462,20 @@ export function DayFormPage() {
             <thead>
               <tr>
                 <th>{t('rojmel.product', 'Product')}</th>
-                <th className="col-locked-head">
+                <th className="col-locked-head num-center">
                   {t('rojmel.rate', 'Rate')} (₹)
                   <Lock className="col-lock-head-ico" size={11} />
                 </th>
-                <th className="col-editable-head">{t('rojmel.qty', 'Sales')}</th>
-                <th className="col-locked-head" title="Opening pieces (morning count)">
+                <th className="col-editable-head num-right">{t('rojmel.qty', 'Sales')}</th>
+                <th className="col-locked-head num-right" title="Opening pieces (morning count)">
                   OPP.PIC
                   <Lock className="col-lock-head-ico" size={11} />
                 </th>
-                <th className="col-locked-head" title="Closing pieces (evening count)">
+                <th className="col-locked-head num-right" title="Closing pieces (evening count)">
                   CLO.PIC
                   <Lock className="col-lock-head-ico" size={11} />
                 </th>
-                <th title="Net = opening − closing">NET.PIC</th>
+                <th className="num-right" title="Net = opening − closing">NET.PIC</th>
                 <th className="col-total-head">{t('rojmel.total', 'Total')}</th>
                 <th />
               </tr>
@@ -452,9 +486,9 @@ export function DayFormPage() {
                 return (
                   <tr key={i} className="reveal-row">
                     <td style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.product || <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
-                    <td className="col-locked">{s.rate || 0}</td>
+                    <td className="col-locked num-center">{s.rate || 0}</td>
                     <td className="col-editable">
-                      <NumberField className="field-inline" value={s.qty} onChange={(v) => updateSalesLine(i, { qty: v })} ariaLabel="Sales pieces" entryFlow />
+                      <NumberField className="field-inline num-right" value={s.qty} onChange={(v) => updateSalesLine(i, { qty: v })} ariaLabel="Sales pieces" entryFlow />
                     </td>
                     <td className="col-stock">
                       {stockUnlocked ? (
@@ -505,7 +539,7 @@ export function DayFormPage() {
             title={t('rojmel.income', 'Income')}
             color="#10b981"
             icon={TrendingUp}
-            tone="income"
+            flow="income-amt"
             lines={incomeLines}
             onChange={setIncomeLines}
           />
@@ -513,13 +547,11 @@ export function DayFormPage() {
             title={t('rojmel.expense', 'Kharcho')}
             color="#ef4444"
             icon={TrendingDown}
-            tone="expense"
+            flow="kharcho-amt"
             lines={expenseLines}
             onChange={setExpenseLines}
           />
         </div>
-
-        <NotesGrid value={notes || null} onChange={(v) => setNotes(v ?? '')} />
 
         {/* Carry-forward: informational (not in any total), like the block below the
             totals in the Excel. Name is free-edit; the amount is admin-locked. */}
@@ -556,23 +588,31 @@ export function DayFormPage() {
               </tr>
             </thead>
             <tbody>
-              {carryForward.map((c, i) => (
-                <tr key={i} className="reveal-row">
-                  <td className="col-editable">
-                    <input className="field-inline" value={c.name} onChange={(e) => updateCarry(i, { name: e.target.value })} placeholder="Name…" />
-                  </td>
-                  <td className="col-stock">
-                    <button className="stock-locked" onClick={() => openCarryAmount(i)} title="Click to edit (password needed)">
-                      {c.amount || 0}
-                    </button>
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button onClick={() => removeCarry(i)} className="icon-btn icon-btn-danger reveal-target" aria-label="Remove" title="Remove (password)">
-                      <Trash2 size={15} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {carryForward.map((c, i) => {
+                const started = c.name.trim() !== '' || c.amount !== 0
+                return (
+                  <tr key={i} className="reveal-row">
+                    <td className={`col-editable${started && !c.name.trim() ? ' is-missing' : ''}`}>
+                      <input
+                        className="field-inline"
+                        value={c.name}
+                        onChange={(e) => updateCarry(i, { name: e.target.value })}
+                        placeholder="Name…"
+                      />
+                    </td>
+                    <td className={`col-stock${started && c.amount === 0 ? ' is-missing' : ''}`}>
+                      <button className="stock-locked" onClick={() => openCarryAmount(i)} title="Click to edit (password needed)">
+                        {c.amount || 0}
+                      </button>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button onClick={() => removeCarry(i)} className="icon-btn icon-btn-danger reveal-target" aria-label="Remove" title="Remove (password)">
+                        <Trash2 size={15} />
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
               {carryForward.length === 0 && (
                 <tr>
                   <td colSpan={3} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '14px', fontSize: 12 }}>
@@ -583,6 +623,8 @@ export function DayFormPage() {
             </tbody>
           </table>
         </div>
+
+        <NotesGrid value={notes || null} onChange={(v) => setNotes(v ?? '')} />
 
         {guard.dialog}
 

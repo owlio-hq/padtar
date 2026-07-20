@@ -43,13 +43,15 @@ def _fill(hex_color: str) -> PatternFill:
 
 
 def _money_table(title: str, lines, head_fill: str, head_text: str) -> Table:
-    """One PDF money table (Income or Kharcho) with a coloured header row."""
-    rows = [[title, "Amount", "Note"]]
+    """One PDF money table (Income or Kharcho) with a coloured header row.
+    Columns are Amount | Description | Note, matching the on-screen order; the
+    block name sits over the wide description column."""
+    rows = [["Amount", title, "Note"]]
     for m in lines:
-        rows.append([m.description, f"{m.amount:.2f}", m.note])
+        rows.append([f"{m.amount:.2f}", m.description, m.note])
     if len(rows) == 1:
-        rows.append(["—", "", ""])
-    tbl = Table(rows, colWidths=[4.3 * cm, 1.8 * cm, 2.7 * cm])
+        rows.append(["", "—", ""])
+    tbl = Table(rows, colWidths=[2.0 * cm, 4.2 * cm, 2.6 * cm])
     tbl.setStyle(
         TableStyle(
             [
@@ -58,7 +60,7 @@ def _money_table(title: str, lines, head_fill: str, head_text: str) -> Table:
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor(f"#{BORDER_COLOR}")),
                 ("FONTSIZE", (0, 0), (-1, -1), 8),
-                ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+                ("ALIGN", (0, 0), (0, -1), "RIGHT"),  # amounts line up
                 ("TOPPADDING", (0, 0), (-1, -1), 2.5),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
             ]
@@ -87,20 +89,23 @@ def build_days_excel(days: list[DayOut]) -> bytes:
             cell.fill, cell.font, cell.border = _fill(HEADER_FILL), Font(bold=True), THIN_BORDER
         row += 1
 
+        right, center = Alignment(horizontal="right"), Alignment(horizontal="center")
         for s in day.sales_lines:
             ws.cell(row=row, column=1, value=s.product).border = THIN_BORDER
             c = ws.cell(row=row, column=2, value=s.rate)
-            c.fill, c.font, c.border = _fill(RATE_FILL), Font(color=RATE_TEXT), THIN_BORDER
+            c.fill, c.font, c.border, c.alignment = _fill(RATE_FILL), Font(color=RATE_TEXT), THIN_BORDER, center
             c = ws.cell(row=row, column=3, value=s.qty)
-            c.fill, c.font, c.border = _fill(USAGE_FILL), Font(color=USAGE_TEXT), THIN_BORDER
+            c.fill, c.font, c.border, c.alignment = _fill(USAGE_FILL), Font(color=USAGE_TEXT), THIN_BORDER, right
             # OPP.PIC (opening) / CLO.PIC (closing) / NET.PIC (opening−closing, red when negative)
-            ws.cell(row=row, column=4, value=s.opening_pic).border = THIN_BORDER
-            ws.cell(row=row, column=5, value=s.closing_pic).border = THIN_BORDER
+            for col, val in ((4, s.opening_pic), (5, s.closing_pic)):
+                c = ws.cell(row=row, column=col, value=val)
+                c.border, c.alignment = THIN_BORDER, right
             net_cell = ws.cell(row=row, column=6, value=s.net_pic)
             fill, text = (NEGATIVE_FILL, NEGATIVE_TEXT) if s.net_pic < 0 else (TOTAL_FILL, TOTAL_TEXT)
             net_cell.fill, net_cell.font, net_cell.border = _fill(fill), Font(color=text, bold=True), THIN_BORDER
+            net_cell.alignment = right
             c = ws.cell(row=row, column=7, value=round(s.total, 2))
-            c.fill, c.font, c.border = _fill(TOTAL_FILL), Font(color=TOTAL_TEXT, bold=True), THIN_BORDER
+            c.fill, c.font, c.border, c.alignment = _fill(TOTAL_FILL), Font(color=TOTAL_TEXT, bold=True), THIN_BORDER, right
             row += 1
 
         fs_label = ws.cell(row=row, column=1, value="Factory Sales")
@@ -109,30 +114,20 @@ def build_days_excel(days: list[DayOut]) -> bytes:
         c.fill, c.font = _fill(SUBTOTAL_FILL), Font(color=SUBTOTAL_TEXT, bold=True)
         row += 2
 
-        if day.income_lines:
-            ws.cell(row=row, column=1, value="Income (besides Factory Sales)").font = Font(bold=True, italic=True)
+        # Amount | Description | Note — same order as the screen, amounts right.
+        for label, money_lines in (("Income", day.income_lines), ("Kharcho", day.expense_lines)):
+            if not money_lines:
+                continue
+            ws.cell(row=row, column=1, value=label).font = Font(bold=True, italic=True)
             row += 1
-            for col, header in enumerate(["Description", "Amount", "Note"], start=1):
+            for col, header in enumerate(["Amount (₹)", "Description", "Note"], start=1):
                 cell = ws.cell(row=row, column=col, value=header)
                 cell.fill, cell.font = _fill(HEADER_FILL), Font(bold=True)
             row += 1
-            for m in day.income_lines:
-                ws.cell(row=row, column=1, value=m.description)
-                ws.cell(row=row, column=2, value=m.amount)
-                ws.cell(row=row, column=3, value=m.note)
-                row += 1
-            row += 1
-
-        if day.expense_lines:
-            ws.cell(row=row, column=1, value="Expense").font = Font(bold=True, italic=True)
-            row += 1
-            for col, header in enumerate(["Description", "Amount", "Note"], start=1):
-                cell = ws.cell(row=row, column=col, value=header)
-                cell.fill, cell.font = _fill(HEADER_FILL), Font(bold=True)
-            row += 1
-            for m in day.expense_lines:
-                ws.cell(row=row, column=1, value=m.description)
-                ws.cell(row=row, column=2, value=m.amount)
+            for m in money_lines:
+                amt = ws.cell(row=row, column=1, value=m.amount)
+                amt.alignment = Alignment(horizontal="right")
+                ws.cell(row=row, column=2, value=m.description)
                 ws.cell(row=row, column=3, value=m.note)
                 row += 1
             row += 1
@@ -155,18 +150,21 @@ def build_days_excel(days: list[DayOut]) -> bytes:
                 row += 1
             row += 1
 
+    # Date | Amount | Note — the stored pair is [note, detail] but detail IS the
+    # amount, and the client reads the amount first.
     notes_ws = wb.create_sheet("Notes")
     notes_ws.column_dimensions["A"].width = 16
-    notes_ws.column_dimensions["B"].width = 45
-    notes_ws.column_dimensions["C"].width = 35
-    notes_ws.append(["Date", "Note", "Detail"])
+    notes_ws.column_dimensions["B"].width = 16
+    notes_ws.column_dimensions["C"].width = 60
+    notes_ws.append(["Date", "Amount", "Note"])
     for cell in notes_ws[1]:
         cell.font, cell.fill = Font(bold=True), _fill(HEADER_FILL)
     for day in sorted(days, key=lambda d: d.date):
         for i, (note, detail) in enumerate(parse_notes(day.notes)):
-            notes_ws.append([day.date.strftime("%d %b %Y") if i == 0 else "", note, detail])
+            notes_ws.append([day.date.strftime("%d %b %Y") if i == 0 else "", detail, note])
             for cell in notes_ws[notes_ws.max_row]:
                 cell.alignment = Alignment(wrap_text=True, vertical="top")
+            notes_ws.cell(row=notes_ws.max_row, column=2).alignment = Alignment(horizontal="right", vertical="top")
 
     fit_to_one_page(ws)
     fit_to_one_page(notes_ws)
@@ -204,6 +202,9 @@ def build_days_pdf(days: list[DayOut]) -> bytes:
             ("FONTNAME", (0, n + 1), (-1, n + 1), "Helvetica-Bold"),
             ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor(f"#{BORDER_COLOR}")),
             ("FONTSIZE", (0, 0), (-1, -1), 8),
+            # amounts/counts right, rate centred, product name left
+            ("ALIGN", (1, 0), (1, -1), "CENTER"),
+            ("ALIGN", (2, 0), (-1, -1), "RIGHT"),
             ("TOPPADDING", (0, 0), (-1, -1), 2.5),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
         ]

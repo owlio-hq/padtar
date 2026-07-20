@@ -43,7 +43,12 @@ def title_block(title: str, subtitle: str) -> list:
 def notes_section(entries: list[tuple[str, list[tuple[str, str]]]]) -> list:
     """entries: list of (date_label, note_rows) where note_rows is a list of
     (note, detail) pairs from core.notes.parse_notes. Renders one PDF row per
-    note line — its own clearly marked section, never mixed into data tables."""
+    note line — its own clearly marked section, never mixed into data tables.
+
+    Columns are Date | Amount | Note: the pair is stored [note, detail] but the
+    detail IS the amount, and the client enters/reads the amount first, so it's
+    rendered first (right-aligned) here too.
+    """
     entries = [(d, rows) for d, rows in entries if rows]
     if not entries:
         return []
@@ -56,15 +61,16 @@ def notes_section(entries: list[tuple[str, list[tuple[str, str]]]]) -> list:
         for i, (note, detail) in enumerate(note_rows):
             rows.append([
                 Paragraph(date if i == 0 else "", NOTE_DATE_STYLE),
+                Paragraph(detail, BODY_STYLE),  # amount
                 Paragraph(note, BODY_STYLE),
-                Paragraph(detail, BODY_STYLE),
             ])
-    table = Table(rows, colWidths=[3 * cm, 8.9 * cm, 5.9 * cm])
+    table = Table(rows, colWidths=[3 * cm, 3.4 * cm, 11.4 * cm])
     table.setStyle(
         TableStyle(
             [
                 ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(f"#{NOTES_FILL}")),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("ALIGN", (1, 0), (1, -1), "RIGHT"),  # amounts line up
                 ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#D7DBE0")),
                 ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.white),
                 ("TOPPADDING", (0, 0), (-1, -1), 3),

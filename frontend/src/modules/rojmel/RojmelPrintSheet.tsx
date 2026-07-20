@@ -39,6 +39,24 @@ function fmtDate(iso: string): string {
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+/** One money table (Income or Kharcho): Amount | Description | Note. */
+function MoneyBlock({ lines }: { lines: MoneyLine[] }) {
+  if (lines.length === 0) return <div className="ps-empty">—</div>
+  return (
+    <table className="ps-table">
+      <tbody>
+        {lines.map((m, i) => (
+          <tr key={i}>
+            <td className="ps-num">{fmt(m.amount)}</td>
+            <td>{m.description}</td>
+            <td>{m.note}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
 export function RojmelPrintSheet({
   date,
   lines,
@@ -102,48 +120,15 @@ export function RojmelPrintSheet({
         </tbody>
       </table>
 
+      {/* Amount first, matching the on-screen order */}
       <div className="ps-money">
         <div className="ps-money-col">
           <div className="ps-subhead">Income</div>
-          <table className="ps-table">
-            <tbody>
-              {incomeLines.map((m, i) => (
-                <tr key={i}>
-                  <td>{m.description}</td>
-                  <td className="ps-num">{fmt(m.amount)}</td>
-                  <td>{m.note}</td>
-                </tr>
-              ))}
-              {incomeLines.length === 0 && (
-                <tr>
-                  <td colSpan={3} className="ps-empty">
-                    —
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          <MoneyBlock lines={incomeLines} />
         </div>
         <div className="ps-money-col">
           <div className="ps-subhead">Kharcho</div>
-          <table className="ps-table">
-            <tbody>
-              {expenseLines.map((m, i) => (
-                <tr key={i}>
-                  <td>{m.description}</td>
-                  <td className="ps-num">{fmt(m.amount)}</td>
-                  <td>{m.note}</td>
-                </tr>
-              ))}
-              {expenseLines.length === 0 && (
-                <tr>
-                  <td colSpan={3} className="ps-empty">
-                    —
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          <MoneyBlock lines={expenseLines} />
         </div>
       </div>
 
@@ -159,16 +144,17 @@ export function RojmelPrintSheet({
         </span>
       </div>
 
+      {/* Carry Forward on the LEFT, Notes on the RIGHT (swapped per client) */}
       <div className="ps-two">
         <div className="ps-block">
-          <div className="ps-subhead">Notes</div>
-          {noteRows.length > 0 ? (
+          <div className="ps-subhead">Carry Forward</div>
+          {carryForward.length > 0 ? (
             <table className="ps-table">
               <tbody>
-                {noteRows.map(([note, detail], i) => (
+                {carryForward.map((c, i) => (
                   <tr key={i}>
-                    <td>{note}</td>
-                    <td>{detail}</td>
+                    <td className="ps-num">{fmt(c.amount)}</td>
+                    <td>{c.name}</td>
                   </tr>
                 ))}
               </tbody>
@@ -178,14 +164,15 @@ export function RojmelPrintSheet({
           )}
         </div>
         <div className="ps-block">
-          <div className="ps-subhead">Carry Forward</div>
-          {carryForward.length > 0 ? (
+          <div className="ps-subhead">Notes</div>
+          {noteRows.length > 0 ? (
             <table className="ps-table">
               <tbody>
-                {carryForward.map((c, i) => (
+                {/* stored as [note, detail]; detail is the amount, shown first */}
+                {noteRows.map(([note, detail], i) => (
                   <tr key={i}>
-                    <td>{c.name}</td>
-                    <td className="ps-num">{fmt(c.amount)}</td>
+                    <td className="ps-num">{detail}</td>
+                    <td>{note}</td>
                   </tr>
                 ))}
               </tbody>

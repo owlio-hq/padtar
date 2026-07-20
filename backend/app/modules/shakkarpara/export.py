@@ -68,15 +68,20 @@ def build_excel(batches: list[BatchOut]) -> bytes:
             cell.border = THIN_BORDER
         row += 1
 
+        # rate centred, usage/total right — same convention as the screen
+        right, center = Alignment(horizontal="right"), Alignment(horizontal="center")
         for ing in batch.ingredients:
             ws.cell(row=row, column=1, value=ing.name).border = THIN_BORDER
             rate_cell = ws.cell(row=row, column=2, value=ing.rate)
             rate_cell.fill, rate_cell.font, rate_cell.border = _fill(RATE_FILL), Font(color=RATE_TEXT), THIN_BORDER
+            rate_cell.alignment = center
             usage_cell = ws.cell(row=row, column=3, value=round(ing.usage, 4))
             usage_cell.fill, usage_cell.font, usage_cell.border = _fill(USAGE_FILL), Font(color=USAGE_TEXT), THIN_BORDER
+            usage_cell.alignment = right
             ws.cell(row=row, column=4, value=ing.unit).border = THIN_BORDER
             total_cell = ws.cell(row=row, column=5, value=round(ing.total, 2))
             total_cell.fill, total_cell.font, total_cell.border = _fill(TOTAL_FILL), Font(color=TOTAL_TEXT, bold=True), THIN_BORDER
+            total_cell.alignment = right
             row += 1
 
         ws.cell(row=row, column=1, value="Production").font = Font(italic=True)
@@ -127,19 +132,22 @@ def build_excel(batches: list[BatchOut]) -> bytes:
 
         row += 1  # blank separator row before the next batch block
 
+    # Date | Amount | Note — the stored pair is [note, detail] but detail IS the
+    # amount, and the client reads the amount first.
     notes_ws = wb.create_sheet("Notes")
     notes_ws.column_dimensions["A"].width = 16
-    notes_ws.column_dimensions["B"].width = 45
-    notes_ws.column_dimensions["C"].width = 35
-    notes_ws.append(["Date", "Note", "Detail"])
+    notes_ws.column_dimensions["B"].width = 16
+    notes_ws.column_dimensions["C"].width = 60
+    notes_ws.append(["Date", "Amount", "Note"])
     for cell in notes_ws[1]:
         cell.font = Font(bold=True)
         cell.fill = _fill(HEADER_FILL)
     for batch in sorted(batches, key=lambda b: b.date):
         for i, (note, detail) in enumerate(parse_notes(batch.notes)):
-            notes_ws.append([batch.date.strftime("%d %b %Y") if i == 0 else "", note, detail])
+            notes_ws.append([batch.date.strftime("%d %b %Y") if i == 0 else "", detail, note])
             for cell in notes_ws[notes_ws.max_row]:
                 cell.alignment = Alignment(wrap_text=True, vertical="top")
+            notes_ws.cell(row=notes_ws.max_row, column=2).alignment = Alignment(horizontal="right", vertical="top")
 
     fit_to_one_page(ws)
     fit_to_one_page(notes_ws)
@@ -185,6 +193,10 @@ def build_pdf(batches: list[BatchOut]) -> bytes:
             ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor(f"#{BORDER_COLOR}")),
             ("FONTSIZE", (0, 0), (-1, -1), 8),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            # rate centred, usage/total right, ingredient + unit left
+            ("ALIGN", (1, 0), (1, -1), "CENTER"),
+            ("ALIGN", (2, 0), (2, -1), "RIGHT"),
+            ("ALIGN", (4, 0), (4, -1), "RIGHT"),
             ("TOPPADDING", (0, 0), (-1, -1), 2.5),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
         ]
