@@ -87,9 +87,10 @@ function MoneyLinesEditor({
             then a compact Note. Each column gets its own band + divider. */}
         <table className="data-table entry-table money-table">
           <colgroup>
-            <col style={{ width: '22%' }} />
+            <col style={{ width: 110 }} />
             <col />
-            <col style={{ width: '17%' }} />
+            {/* fixed width = the ~12 characters they wanted visible */}
+            <col style={{ width: 140 }} />
             <col style={{ width: 48 }} />
           </colgroup>
           <thead>
@@ -115,6 +116,9 @@ function MoneyLinesEditor({
                       onChange={(v) => update(i, { amount: v })}
                       ariaLabel="Amount"
                       entryFlow={flow}
+                      /* only the first row hints — repeated down every row it
+                         reads as if the rows are already filled in */
+                      placeholder={i === 0 ? '0' : ''}
                     />
                   </td>
                   <td className={`cell-edit${started && !l.description.trim() ? ' is-missing' : ''}`}>
@@ -122,15 +126,15 @@ function MoneyLinesEditor({
                       className="field-inline"
                       value={l.description}
                       onChange={(e) => update(i, { description: e.target.value })}
-                      placeholder="What for…"
+                      placeholder={i === 0 ? 'What for…' : ''}
                     />
                   </td>
                   <td className={`col-note${started && !l.note.trim() ? ' is-missing' : ''}`}>
                     <input
-                      className="field-inline note-cell"
+                      className="field-inline"
                       value={l.note}
                       onChange={(e) => update(i, { note: e.target.value })}
-                      placeholder="Note"
+                      placeholder={i === 0 ? 'Note' : ''}
                     />
                   </td>
                   <td className="col-actions">
@@ -356,7 +360,9 @@ export function DayFormPage() {
 
   return (
     <>
-      <div className="rojmel-screen mx-auto" style={{ maxWidth: 940 }} ref={entryFlow.containerRef} onKeyDown={entryFlow.onKeyDown}>
+      {/* no width cap: the shell's max-w-6xl already bounds this, and the extra
+          ~150px goes to the tables (Description especially) */}
+      <div className="rojmel-screen mx-auto" ref={entryFlow.containerRef} onKeyDown={entryFlow.onKeyDown}>
         <PageHeader
           title={isNew ? 'New day' : `Day — ${date}`}
           subtitle="Daily sales and cash"
@@ -553,9 +559,12 @@ export function DayFormPage() {
           />
         </div>
 
+        {/* Carry Forward (left) + Notes (right) share a row — same order as the
+            printed sheet, and neither needs a full width to itself. */}
+        <div className="mt-5 flex flex-col gap-5 sm:flex-row sm:items-start">
         {/* Carry-forward: informational (not in any total), like the block below the
             totals in the Excel. Name is free-edit; the amount is admin-locked. */}
-        <div className="card category-card mt-5 overflow-hidden" style={{ '--cat': '#8b5cf6' } as React.CSSProperties}>
+        <div className="card category-card flex-1 overflow-hidden" style={{ '--cat': '#8b5cf6' } as React.CSSProperties}>
           <div className="category-strip">
             <span className="category-title">
               <HandCoins size={16} />
@@ -571,19 +580,21 @@ export function DayFormPage() {
               Add
             </button>
           </div>
-          <table className="data-table entry-table">
+          {/* Amount first here too, so every table on the sheet reads the same
+              way (and matches the printed sheet). */}
+          <table className="data-table entry-table money-table">
             <colgroup>
+              <col style={{ width: 140 }} />
               <col />
-              <col style={{ width: '30%' }} />
               <col style={{ width: 48 }} />
             </colgroup>
             <thead>
               <tr>
-                <th>Name</th>
-                <th className="col-locked-head" style={{ textAlign: 'right' }}>
+                <th className="col-amt col-locked-head amt-cell">
                   Carry forward (₹)
                   <Lock className="col-lock-head-ico" size={11} />
                 </th>
+                <th>Name</th>
                 <th />
               </tr>
             </thead>
@@ -592,18 +603,18 @@ export function DayFormPage() {
                 const started = c.name.trim() !== '' || c.amount !== 0
                 return (
                   <tr key={i} className="reveal-row">
-                    <td className={`col-editable${started && !c.name.trim() ? ' is-missing' : ''}`}>
+                    <td className={`col-amt${started && c.amount === 0 ? ' is-missing' : ''}`}>
+                      <button className="stock-locked" onClick={() => openCarryAmount(i)} title="Click to edit (password needed)">
+                        {c.amount || 0}
+                      </button>
+                    </td>
+                    <td className={`cell-edit${started && !c.name.trim() ? ' is-missing' : ''}`}>
                       <input
                         className="field-inline"
                         value={c.name}
                         onChange={(e) => updateCarry(i, { name: e.target.value })}
-                        placeholder="Name…"
+                        placeholder={i === 0 ? 'Name' : ''}
                       />
-                    </td>
-                    <td className={`col-stock${started && c.amount === 0 ? ' is-missing' : ''}`}>
-                      <button className="stock-locked" onClick={() => openCarryAmount(i)} title="Click to edit (password needed)">
-                        {c.amount || 0}
-                      </button>
                     </td>
                     <td className="col-actions">
                       <button onClick={() => removeCarry(i)} className="icon-btn icon-btn-danger reveal-target" aria-label="Remove" title="Remove (password)">
@@ -624,7 +635,10 @@ export function DayFormPage() {
           </table>
         </div>
 
-        <NotesGrid value={notes || null} onChange={(v) => setNotes(v ?? '')} />
+          <div className="flex-1">
+            <NotesGrid value={notes || null} onChange={(v) => setNotes(v ?? '')} className="" />
+          </div>
+        </div>
 
         {guard.dialog}
 

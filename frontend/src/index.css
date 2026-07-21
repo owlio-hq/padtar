@@ -702,10 +702,10 @@ input[type='number'] {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-/* the note box shows ~12 characters; longer text still types fine (it scrolls) */
-.money-table .note-cell {
-  width: 12ch;
-}
+/* The note input fills its cell, so its border and focus ring line up with the
+   cell edges. (It used to be pinned to 12ch inside a much wider cell, which drew
+   a shrunken box floating in the middle — that's what looked broken on hover.)
+   The ~12-characters-visible ask is handled by the COLUMN width instead. */
 
 /* Row action icons (edit / delete). The default cell padding (16px each side)
    left too little room and the buttons spilled past the table's right edge —

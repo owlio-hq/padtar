@@ -51,7 +51,17 @@ function autoGrow(el: HTMLTextAreaElement | null) {
  * A cell is tinted amber only when its row has been started but this cell is
  * still empty — a nudge, never a requirement.
  */
-export function NotesGrid({ value, onChange }: { value: string | null; onChange: (v: string | null) => void }) {
+export function NotesGrid({
+  value,
+  onChange,
+  className = 'mt-5',
+}: {
+  value: string | null
+  onChange: (v: string | null) => void
+  /** Outer spacing. Pass '' when the caller already positions the card (e.g.
+   *  sitting beside Carry Forward in a flex row). */
+  className?: string
+}) {
   const [rows, setRows] = useState<Row[]>(() => padded(parseRows(value)))
   const loadedFor = useRef(value)
 
@@ -76,7 +86,7 @@ export function NotesGrid({ value, onChange }: { value: string | null; onChange:
   }
 
   return (
-    <div className="card notes-card mt-5 p-4">
+    <div className={`card notes-card p-4 ${className}`}>
       <label className="mb-2 flex items-center gap-1.5 text-sm font-medium" style={{ color: 'var(--text)' }}>
         <StickyNote size={15} />
         Notes
@@ -91,11 +101,13 @@ export function NotesGrid({ value, onChange }: { value: string | null; onChange:
         const started = note.trim() !== '' || amount.trim() !== ''
         return (
           <div key={i} className="notes-grid-row reveal-row">
+            {/* Only the first row hints. Repeated down every row the example
+                text reads as if the rows are already filled in. */}
             <textarea
               className={`field notes-cell amt-cell${started && !amount.trim() ? ' is-missing' : ''}`}
               rows={1}
               value={amount}
-              placeholder="e.g. 23820"
+              placeholder={i === 0 ? '0' : ''}
               data-entry-flow="note-amt"
               ref={autoGrow}
               onChange={(e) => {
@@ -107,7 +119,7 @@ export function NotesGrid({ value, onChange }: { value: string | null; onChange:
               className={`field notes-cell${started && !note.trim() ? ' is-missing' : ''}`}
               rows={1}
               value={note}
-              placeholder="e.g. Chirag bhai"
+              placeholder={i === 0 ? 'Note' : ''}
               data-entry-flow="note-txt"
               ref={autoGrow}
               onChange={(e) => {

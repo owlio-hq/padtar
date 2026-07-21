@@ -261,7 +261,7 @@ export function BatchFormPage() {
   const catSubtotal = (rows: { idx: number }[]) => rows.reduce((s, r) => s + (lines[r.idx]?.total ?? 0), 0)
 
   return (
-    <div className="mx-auto" style={{ maxWidth: 940 }} ref={entryFlow.containerRef} onKeyDown={entryFlow.onKeyDown}>
+    <div className="mx-auto" ref={entryFlow.containerRef} onKeyDown={entryFlow.onKeyDown}>
       <PageHeader
         title={isNew ? 'New batch' : `Batch – ${date}`}
         subtitle="Batch costing"
