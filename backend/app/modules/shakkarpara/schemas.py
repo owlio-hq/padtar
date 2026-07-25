@@ -56,6 +56,28 @@ class BatchOut(BaseModel):
     padtar: float | None
 
 
+class BatchRecapOut(BaseModel):
+    """One row of the "last N batches" reference strip shown while entering a batch.
+
+    Read-only glance data — the client wants to see how these few numbers have been
+    moving without leaving the sheet they're typing on. Nothing here is stored: every
+    value is read off the batch or recomputed by the engine.
+
+    Both oil rates are carried on purpose. They are two independently typed cells (only
+    Oil Vaprayel's *usage* is auto-filled from the Oil Sheet, never its rate) and they
+    genuinely differ on ~27% of the client's real historical sheets.
+    """
+
+    id: int
+    date: date
+    oil_rate: float | None
+    oil_vaprayel_rate: float | None
+    menda_rate: float | None
+    menda_katta: float | None
+    production_qty: float
+    padtar: float | None
+
+
 class HistorySnapshotOut(BaseModel):
     id: int
     snapshot_at: str

@@ -45,6 +45,25 @@ export interface BatchInput {
   oil_sit: OilSit | null
 }
 
+/**
+ * One row of the "last N batches" reference strip on the batch form.
+ *
+ * Both oil rates are carried: they are two independently typed cells (only Oil
+ * Vaprayel's *usage* is auto-filled from the Oil Sheet, never its rate) and they
+ * differ on ~27% of the client's real historical sheets.
+ * Any field is null when that ingredient row isn't on the batch.
+ */
+export interface BatchRecap {
+  id: number
+  date: string
+  oil_rate: number | null
+  oil_vaprayel_rate: number | null
+  menda_rate: number | null
+  menda_katta: number | null
+  production_qty: number
+  padtar: number | null
+}
+
 export interface HistorySnapshot {
   id: number
   snapshot_at: string

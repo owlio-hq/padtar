@@ -14,3 +14,9 @@ DEFAULT_PRODUCTS: list[dict] = [
     {"name": "Para 200g", "rate": 30},
     {"name": "Para 500g", "rate": 80},
 ]
+
+# The ONE carry-forward row that rolls over to the next day (see the carry-forward
+# rules in docs/PROJECT-STATE.md). Every other carry-forward name stays on the day
+# it was typed on. Matched trimmed + case-insensitively, so "chetna ben " still
+# counts — change this single constant if the client ever names someone else.
+CARRY_FORWARD_NAME = "Chetna ben"

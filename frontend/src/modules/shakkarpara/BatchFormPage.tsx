@@ -10,6 +10,7 @@ import { computeBatch } from './calc'
 import { DEFAULT_OIL_SIT } from './defaults'
 import { CATEGORY_ORDER, type BatchInput, type Ingredient, type OilSit } from './types'
 import { IngredientEditDialog, type ApplyMode } from './IngredientEditDialog'
+import { RecentBatchesPanel } from './RecentBatchesPanel'
 import { useAuth } from '../../auth/AuthContext'
 import { useLabels } from '../../i18n/LabelsContext'
 import { PageHeader } from '../../components/PageHeader'
@@ -308,17 +309,6 @@ export function BatchFormPage() {
           <input type="date" className="field" value={date} onChange={(e) => setDate(e.target.value)} />
         </div>
 
-        <div className="field-card" style={{ '--cat': '#3b82f6' } as React.CSSProperties}>
-          <Lock size={12} className="field-card-lock" />
-          <label className="field-label flex items-center gap-1.5">
-            <Factory size={13} />
-            {t('shakkarpara.production', 'Production')}
-          </label>
-          <button className="field locked-field" onClick={() => openFieldEdit('prod')} title="Click to edit (password needed)">
-            {productionQty || 0} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>{productionUnit}</span>
-          </button>
-        </div>
-
         <div className="field-card" style={{ '--cat': '#f59e0b' } as React.CSSProperties}>
           <Lock size={12} className="field-card-lock" />
           <label className="field-label flex items-center gap-1.5" title="Office / overhead added on top of cost-per-unit">
@@ -330,7 +320,18 @@ export function BatchFormPage() {
           </button>
         </div>
 
-        <div className="field-card" style={{ '--cat': '#8b5cf6' } as React.CSSProperties}>
+        <div className="field-card field-card-strong" style={{ '--cat': '#3b82f6' } as React.CSSProperties}>
+          <Lock size={12} className="field-card-lock" />
+          <label className="field-label flex items-center gap-1.5">
+            <Factory size={13} />
+            {t('shakkarpara.production', 'Production')}
+          </label>
+          <button className="field locked-field" onClick={() => openFieldEdit('prod')} title="Click to edit (password needed)">
+            {productionQty || 0} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>{productionUnit}</span>
+          </button>
+        </div>
+
+        <div className="field-card field-card-strong" style={{ '--cat': '#8b5cf6' } as React.CSSProperties}>
           <label className="field-label flex items-center gap-1.5">
             <Sigma size={13} />
             Grand Total (₹)
@@ -340,7 +341,7 @@ export function BatchFormPage() {
           </div>
         </div>
 
-        <div className="field-card" style={{ '--cat': '#10b981' } as React.CSSProperties}>
+        <div className="field-card field-card-strong field-card-hero" style={{ '--cat': '#10b981' } as React.CSSProperties}>
           <label className="field-label flex items-center gap-1.5">
             <Coins size={13} />
             {t('shakkarpara.padtar', 'Padtar')} (₹)
@@ -350,6 +351,9 @@ export function BatchFormPage() {
           </div>
         </div>
       </div>
+
+      {/* Reference only — collapsed by default, screen-only (never printed/exported) */}
+      <RecentBatchesPanel excludeId={isNew ? undefined : (batchId as number)} />
 
       {byCategory.map(({ cat, rows }) => {
         const color = CATEGORY_COLORS[cat] ?? 'var(--accent)'

@@ -221,7 +221,7 @@ export function DashboardPage() {
       <MetricCards metrics={shakMetrics} />
 
       <div className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
-        Rojmel
+        Rojmed
       </div>
       <MetricCards metrics={rojmelMetrics} />
 

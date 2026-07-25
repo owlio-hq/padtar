@@ -207,9 +207,13 @@ def system_check_update(force: bool = True):
         return {"status": "locked", "message": guard.LOCK_MESSAGE}
     if not updater.updates_enabled():
         return {"status": "dev", "version": app_version()}
-    if result["flag"] == "offline":
-        return {"status": "offline"}
-
+    # NB: do NOT bail here on result["flag"] == "offline". A failed access.json
+    # fetch is not "no internet" — the guard already treats it as an offline
+    # FALLBACK (not locked before TRIAL_END), and raw.githubusercontent can hiccup
+    # independently of GitHub being reachable. Whether we're truly offline is
+    # decided by the actual version fetch below, so a flag-fetch blip no longer
+    # aborts a perfectly reachable update. (This is the "saw v5, then no-internet"
+    # failure a client hit.)
     info = updater.check_status(force=force)
     if info["offline"]:
         return {"status": "offline"}
@@ -227,9 +231,9 @@ def system_apply_update():
         return {"status": "locked", "message": guard.LOCK_MESSAGE}
     if not updater.updates_enabled():
         return {"status": "dev"}
-    if result["flag"] == "offline":
-        return {"status": "offline"}
-
+    # As in check-update: a failed access.json fetch (flag == "offline") must not
+    # abort the apply. The real offline signal is apply_update() raising Offline
+    # when the code archive itself can't be downloaded — caught just below.
     try:
         new_version = updater.apply_update()
     except updater.Offline:

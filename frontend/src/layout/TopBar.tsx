@@ -10,7 +10,7 @@ function resolveSection(pathname: string): Section {
     if (pathname === '/rojmel/stock') sub = 'Stock'
     else if (pathname === '/rojmel/new') sub = 'New day'
     else if (/^\/rojmel\/\d+$/.test(pathname)) sub = 'Day'
-    return { icon: Wallet, labelKey: 'nav.rojmel', fallback: 'Rojmel', sub }
+    return { icon: Wallet, labelKey: 'nav.rojmel', fallback: 'Rojmed', sub }
   }
   if (pathname.startsWith('/shakkarpara')) {
     let sub: string | undefined

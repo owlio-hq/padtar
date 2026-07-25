@@ -16,7 +16,8 @@ const PENDING_POLL_MS = 15 * 1000
 const TOP_ITEMS = [{ to: '/', labelKey: 'nav.dashboard', fallback: 'Dashboard', icon: LayoutDashboard }]
 
 const MODULE_ITEMS = [
-  { to: '/rojmel', labelKey: 'nav.rojmel', fallback: 'Rojmel', icon: Wallet },
+  // visible word is "Rojmed"; the route/key stay "rojmel" (see docs/PROJECT-STATE.md)
+  { to: '/rojmel', labelKey: 'nav.rojmel', fallback: 'Rojmed', icon: Wallet },
   { to: '/shakkarpara', labelKey: 'nav.shakkarpara', fallback: 'Shakkarpara', icon: Package },
 ]
 
@@ -91,7 +92,9 @@ export function AppShell() {
       <div className="flex flex-1 flex-col overflow-hidden">
         <TopBar />
         <main className="app-main flex-1 overflow-y-auto px-8 py-7">
-          <div className="mx-auto max-w-6xl">
+          {/* 7xl (1280px), not 6xl — the money tables needed the room that was
+              sitting empty either side of the sheet on a wide screen */}
+          <div className="mx-auto max-w-7xl">
             <Outlet />
           </div>
         </main>

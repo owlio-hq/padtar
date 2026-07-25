@@ -316,6 +316,35 @@ input[type='number'] {
 .field-card .locked-field:hover {
   color: var(--accent);
 }
+/* The cards that carry an OUTCOME (production made, what it cost, cost per unit)
+   get a real tinted fill, so the eye lands on them instead of scanning five
+   identical boxes — the plain cards' 2px top edge all but disappears on white.
+   The input cards (date, office expenses) stay quiet on purpose: if everything
+   is emphasised, nothing is. */
+.field-card-strong {
+  background: color-mix(in srgb, var(--cat, var(--accent)) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--cat, var(--border)) 45%, transparent);
+  border-top: 2px solid var(--cat, var(--border));
+}
+.field-card-strong .field-label {
+  color: color-mix(in srgb, var(--cat, var(--text)) 55%, var(--text));
+  font-weight: 600;
+}
+.field-card-strong .field,
+.field-card-strong .locked-field,
+.field-card-strong .readonly-value {
+  font-size: 17px;
+  font-weight: 700;
+}
+/* Padtar is the number the whole sheet exists to produce — biggest of the three. */
+.field-card-hero .field,
+.field-card-hero .locked-field,
+.field-card-hero .readonly-value {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
 /* lock pinned to the card's top-right corner — uniform across all locked cards */
 .field-card-lock {
   position: absolute;
@@ -442,6 +471,75 @@ input[type='number'] {
   letter-spacing: 0.01em;
   text-transform: none;
 }
+/* ---------------------------------------------------------------------------
+   Reference strip ("Last 10 batches") — deliberately NOT a .category-strip.
+   A solid band is this app's language for "a data section you fill in", so
+   reusing it made the recap read as another Raw Material header. This is a
+   helper: dashed edge (nothing here is entered), soft tint instead of a solid
+   fill, and the label in the accent colour rather than white. Uses the existing
+   blue --tint-rate-* pair, already tuned for both themes.
+   --------------------------------------------------------------------------- */
+.recap-card {
+  border: 1px dashed color-mix(in srgb, var(--tint-rate-text) 42%, var(--border));
+  background: transparent;
+}
+.recap-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 14px;
+  background: var(--tint-rate-bg);
+  border: none;
+  border-left: 3px solid var(--tint-rate-text);
+  cursor: pointer;
+  text-align: left;
+  /* NO transition on background-color here on purpose: this background comes from
+     a custom property, and a transitioned var()-driven background does not
+     re-evaluate when the theme class flips — the strip kept its old-theme fill
+     while every other colour on the same element switched. Hover is instant
+     instead, which matches .category-strip. */
+}
+.recap-strip:hover {
+  background: color-mix(in srgb, var(--tint-rate-text) 22%, var(--tint-rate-bg));
+}
+.recap-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--tint-rate-text);
+}
+/* "reference only" tag — says what this block is without a sentence of help text */
+.recap-tag {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--tint-rate-text) 45%, transparent);
+  color: var(--tint-rate-text);
+  opacity: 0.85;
+}
+.recap-chevron {
+  margin-left: auto;
+  display: inline-flex;
+  color: var(--tint-rate-text);
+}
+/* the rows are reference data, not entry rows — lighter than a real data table */
+.recap-card .data-table tbody td {
+  padding: 7px 14px;
+  color: var(--text-secondary);
+}
+.recap-card .data-table thead th {
+  padding: 8px 14px;
+}
+
 .btn-cat {
   background: transparent;
   color: #fff;
@@ -485,6 +583,10 @@ input[type='number'] {
   color: var(--text-muted);
   margin-bottom: 4px;
   padding: 0 2px;
+}
+/* the Amount heading sits over right-aligned numbers — line it up with them */
+.notes-grid-head span:first-child {
+  text-align: right;
 }
 .notes-grid-row {
   margin-bottom: 6px;
@@ -644,7 +746,11 @@ input[type='number'] {
 .stock-locked {
   display: flex;
   align-items: center;
+  /* justify-content only positions the locked BUTTON's text; an <input> needs
+     text-align, or the number jumps left the moment the column is unlocked */
   justify-content: flex-end;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
   width: 100%;
   height: 32px;
   padding: 0 10px;
@@ -692,6 +798,41 @@ input[type='number'] {
 .money-table th.col-note {
   background: var(--band-note);
 }
+/* Every typed cell here draws a real input box, exactly like the Sales / OPP.PIC
+   columns in the daily-sales table — otherwise the values read as plain text and
+   the worker can't see where to type.
+   The default cell padding (16px a side) was also eating ~32px of every column,
+   which is why short notes like "ajaybhai" came out clipped; 8px gives that back
+   to the text instead of to whitespace.
+
+   Written as `.data-table.money-table` (0,4,1) on purpose: the base
+   `.data-table tbody td { padding: 11px 16px }` is declared LATER in this file at
+   equal specificity, so a plain `.money-table tbody td` silently lost to it.
+   Scoped to the three data columns so `.col-actions` keeps its own padding. */
+.data-table.money-table tbody td.col-amt,
+.data-table.money-table tbody td.cell-edit,
+.data-table.money-table tbody td.col-note {
+  padding: 6px 8px;
+}
+.money-table tbody td .field-inline {
+  border: 1px solid var(--border-strong);
+  background: var(--input-box-bg);
+  border-radius: var(--radius);
+  height: 32px;
+  padding: 0 8px;
+}
+/* Note is the tightest column — trim its padding a little further. */
+.money-table tbody td.col-note .field-inline {
+  padding: 0 6px;
+}
+.money-table tbody td .field-inline:hover {
+  border-color: var(--tint-rate-text);
+}
+.money-table tbody td .field-inline:focus {
+  border-color: var(--tint-rate-text);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+  background: var(--surface);
+}
 /* vertical dividers between every column */
 .money-table td + td,
 .money-table th + th {
@@ -734,6 +875,18 @@ input[type='number'] {
   text-align: right;
 }
 .entry-table td .field-inline.num-center {
+  text-align: center;
+}
+/* A header must sit over its own numbers. `.data-table thead th` sets
+   text-align:left at specificity (0,1,2), which silently out-ranked the bare
+   `.num-right` / `.num-center` / `.col-total-head` classes (0,1,0) — so EVERY
+   header in every table was being forced left no matter what it was tagged with.
+   These raise the alignment rules above it. */
+.data-table thead th.num-right,
+.data-table thead th.col-total-head {
+  text-align: right;
+}
+.data-table thead th.num-center {
   text-align: center;
 }
 
@@ -1158,10 +1311,28 @@ textarea.is-missing::placeholder {
     font-weight: 700;
     font-size: 8pt;
   }
-  .print-sheet .ps-num {
+  /* Written against `.ps-table th/td` on purpose: the shared cell rule above is
+     specificity (0,2,1) and sets text-align:left, so a bare `.ps-num` (0,2,0)
+     lost to it and every printed number came out left-aligned. */
+  .print-sheet .ps-num,
+  .print-sheet .ps-table th.ps-num,
+  .print-sheet .ps-table td.ps-num {
     text-align: right;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+  }
+  /* rates and totals read better centred in their column (client's ask) */
+  .print-sheet .ps-table th.ps-center,
+  .print-sheet .ps-table td.ps-center {
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  /* Note sits just under the Amount column in width (9ch vs 10ch) so Description
+     still gets the bulk; a touch smaller than body type, and anything longer
+     wraps (word-break above) instead of being cut */
+  .print-sheet .ps-note {
+    font-size: 8pt;
   }
   .print-sheet .ps-total-row td {
     font-weight: 700;
@@ -1204,7 +1375,9 @@ textarea.is-missing::placeholder {
 
   @page {
     size: A4 portrait;
-    margin: 10mm;
+    /* tightened from 10mm — gives the tables more real width on the page.
+       6mm is still inside every consumer printer's unprintable edge. */
+    margin: 6mm;
   }
 
   /* chrome + anything interactive has no business on paper */
@@ -1218,6 +1391,9 @@ textarea.is-missing::placeholder {
   .back-circle,
   .field-card-lock,
   .col-lock-head-ico,
+  /* the "last 10 batches" strip is a typing aid, not part of the batch record —
+     it must never reach paper (it would also break the one-page fit) */
+  .recap-card,
   .dialog-overlay {
     display: none !important;
   }
@@ -1261,10 +1437,13 @@ textarea.is-missing::placeholder {
     display: flex !important;
     flex-direction: column !important;
     box-sizing: border-box !important;
-    min-height: 273mm !important; /* A4 printable (277mm) less a little bottom room */
-    border: 0.75pt solid #999 !important;
+    min-height: 283mm !important; /* A4 (285mm printable at 6mm margin) less a little bottom room */
+    /* thin, faint frame — grey in every theme (the print reset can't force it black).
+       In dark-mode print PREVIEW the sheet sits on a black backdrop, which makes the
+       page edge read as a hard outline, but that backdrop is never part of the PDF. */
+    border: 0.5pt solid #bbb !important;
     border-radius: 2pt !important;
-    padding: 5mm 6mm !important; /* the "start the table from inside" gap */
+    padding: 2.5mm 3mm !important; /* trimmed from 5mm/6mm — more room for the tables */
   }
   /* nested wrappers: only drop the on-screen width cap, never a frame */
   .app-main .mx-auto {

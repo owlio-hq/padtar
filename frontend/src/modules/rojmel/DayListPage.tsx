@@ -50,7 +50,7 @@ export function DayListPage() {
   return (
     <div>
       <PageHeader
-        title={t('rojmel.title', 'Rojmel')}
+        title={t('rojmel.title', 'Rojmed')}
         subtitle="Daily sales and cash"
         actions={
           <>

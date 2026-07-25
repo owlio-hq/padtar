@@ -1,5 +1,5 @@
 import { api } from '../../api/client'
-import type { Day, DayInput, HistorySnapshot, StockRow } from './types'
+import type { CarryIn, Day, DayInput, HistorySnapshot, StockRow } from './types'
 
 const BASE = '/rojmel'
 
@@ -12,6 +12,8 @@ export const rojmelApi = {
     return api.get<Day[]>(`${BASE}/days${suffix}`)
   },
   get: (id: number) => api.get<Day>(`${BASE}/days/${id}`),
+  /** Carry-forward amount + notes inherited from the most recent day before `before`. */
+  carryIn: (before: string) => api.get<CarryIn>(`${BASE}/days/carry-in?before=${before}`),
   create: (data: DayInput) => api.post<Day>(`${BASE}/days`, data),
   update: (id: number, data: DayInput) => api.put<Day>(`${BASE}/days/${id}`, data),
   remove: (id: number) => api.delete(`${BASE}/days/${id}`),

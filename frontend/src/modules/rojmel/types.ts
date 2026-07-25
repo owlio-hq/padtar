@@ -47,6 +47,14 @@ export interface DayInput {
   carry_forward_lines: CarryForwardLine[]
 }
 
+/** What a brand-new day inherits from the most recent earlier day. */
+export interface CarryIn {
+  source_date: string | null
+  carry_forward_name: string
+  carry_forward_amount: number
+  notes: string | null
+}
+
 export interface HistorySnapshot {
   id: number
   snapshot_at: string

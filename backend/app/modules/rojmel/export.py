@@ -73,8 +73,8 @@ def build_days_excel(days: list[DayOut]) -> bytes:
     wb = Workbook()
     ws = wb.active
     ws.title = "Days"
-    # widths: Product | Rate | Sales | OPP.PIC | CLO.PIC | NET.PIC | Total
-    for idx, width in enumerate([22, 12, 10, 11, 11, 11, 14], start=1):
+    # widths: Product | Rate | OPP.PIC | CLO.PIC | NET.PIC | Sales | Total
+    for idx, width in enumerate([22, 12, 11, 11, 11, 10, 14], start=1):
         ws.column_dimensions[get_column_letter(idx)].width = width
 
     row = 1
@@ -83,8 +83,9 @@ def build_days_excel(days: list[DayOut]) -> bytes:
         ws.cell(row=row, column=2, value=day.date.strftime("%d %b %Y")).font = Font(bold=True)
         row += 1
 
-        # Column order: Product | Rate | Sales | OPP.PIC | CLO.PIC | NET.PIC | Total
-        for col, header in enumerate(["Product", "Rate (₹)", "Sales", "OPP.PIC", "CLO.PIC", "NET.PIC", "Total (₹)"], start=1):
+        # Column order: Product | Rate | OPP.PIC | CLO.PIC | NET.PIC | Sales | Total
+        # (the stock trio sits together, then the count they type, then the money)
+        for col, header in enumerate(["Product", "Rate (₹)", "OPP.PIC", "CLO.PIC", "NET.PIC", "Sales", "Total (₹)"], start=1):
             cell = ws.cell(row=row, column=col, value=header)
             cell.fill, cell.font, cell.border = _fill(HEADER_FILL), Font(bold=True), THIN_BORDER
         row += 1
@@ -94,16 +95,16 @@ def build_days_excel(days: list[DayOut]) -> bytes:
             ws.cell(row=row, column=1, value=s.product).border = THIN_BORDER
             c = ws.cell(row=row, column=2, value=s.rate)
             c.fill, c.font, c.border, c.alignment = _fill(RATE_FILL), Font(color=RATE_TEXT), THIN_BORDER, center
-            c = ws.cell(row=row, column=3, value=s.qty)
-            c.fill, c.font, c.border, c.alignment = _fill(USAGE_FILL), Font(color=USAGE_TEXT), THIN_BORDER, right
             # OPP.PIC (opening) / CLO.PIC (closing) / NET.PIC (opening−closing, red when negative)
-            for col, val in ((4, s.opening_pic), (5, s.closing_pic)):
+            for col, val in ((3, s.opening_pic), (4, s.closing_pic)):
                 c = ws.cell(row=row, column=col, value=val)
                 c.border, c.alignment = THIN_BORDER, right
-            net_cell = ws.cell(row=row, column=6, value=s.net_pic)
+            net_cell = ws.cell(row=row, column=5, value=s.net_pic)
             fill, text = (NEGATIVE_FILL, NEGATIVE_TEXT) if s.net_pic < 0 else (TOTAL_FILL, TOTAL_TEXT)
             net_cell.fill, net_cell.font, net_cell.border = _fill(fill), Font(color=text, bold=True), THIN_BORDER
             net_cell.alignment = right
+            c = ws.cell(row=row, column=6, value=s.qty)
+            c.fill, c.font, c.border, c.alignment = _fill(USAGE_FILL), Font(color=USAGE_TEXT), THIN_BORDER, right
             c = ws.cell(row=row, column=7, value=round(s.total, 2))
             c.fill, c.font, c.border, c.alignment = _fill(TOTAL_FILL), Font(color=TOTAL_TEXT, bold=True), THIN_BORDER, right
             row += 1
@@ -148,7 +149,12 @@ def build_days_excel(days: list[DayOut]) -> bytes:
                 ws.cell(row=row, column=1, value=cf.name)
                 ws.cell(row=row, column=2, value=cf.amount)
                 row += 1
-            row += 1
+            # Informational total — deliberately NOT part of Cash on Hand.
+            total_label = ws.cell(row=row, column=1, value="Total")
+            total_label.fill, total_label.font = _fill(SUBTOTAL_FILL), Font(color=SUBTOTAL_TEXT, bold=True)
+            c = ws.cell(row=row, column=2, value=round(sum(cf.amount for cf in day.carry_forward_lines), 2))
+            c.fill, c.font = _fill(SUBTOTAL_FILL), Font(color=SUBTOTAL_TEXT, bold=True)
+            row += 2
 
     # Date | Amount | Note — the stored pair is [note, detail] but detail IS the
     # amount, and the client reads the amount first.
@@ -176,25 +182,26 @@ def build_days_excel(days: list[DayOut]) -> bytes:
 
 def build_days_pdf(days: list[DayOut]) -> bytes:
     buffer = BytesIO()
-    doc = new_document(buffer, "Rojmel")
-    story = title_block("Rojmel", "Daily sales & cash export")
+    # visible word is "Rojmed"; module/table/file names stay "rojmel"
+    doc = new_document(buffer, "Rojmed")
+    story = title_block("Rojmed", "Daily sales & cash export")
 
     for day in sorted(days, key=lambda d: d.date):
         story.append(Paragraph(f"Day — {day.date.strftime('%d %b %Y')}", SECTION_STYLE))
 
         # PDF uses Helvetica, which has no ₹ glyph (renders as a black box) — use "Rs."
-        # Column order: Product | Rate | Sales | OPP.PIC | CLO.PIC | NET.PIC | Total
-        rows = [["Product", "Rate (Rs.)", "Sales", "OPP.PIC", "CLO.PIC", "NET.PIC", "Total (Rs.)"]]
+        # Column order: Product | Rate | OPP.PIC | CLO.PIC | NET.PIC | Sales | Total
+        rows = [["Product", "Rate (Rs.)", "OPP.PIC", "CLO.PIC", "NET.PIC", "Sales", "Total (Rs.)"]]
         for s in day.sales_lines:
-            rows.append([s.product, f"{s.rate:g}", f"{s.qty:g}", f"{s.opening_pic:g}", f"{s.closing_pic:g}", f"{s.net_pic:g}", f"{s.total:.2f}"])
+            rows.append([s.product, f"{s.rate:g}", f"{s.opening_pic:g}", f"{s.closing_pic:g}", f"{s.net_pic:g}", f"{s.qty:g}", f"{s.total:.2f}"])
         rows.append(["Factory Sales", "", "", "", "", "", f"{day.factory_sales:.2f}"])
         n = len(day.sales_lines)
-        table = Table(rows, colWidths=[4.4 * cm, 2 * cm, 1.7 * cm, 1.9 * cm, 1.9 * cm, 1.9 * cm, 2.6 * cm])
+        table = Table(rows, colWidths=[4.4 * cm, 2 * cm, 1.9 * cm, 1.9 * cm, 1.9 * cm, 1.7 * cm, 2.6 * cm])
         style = [
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(f"#{HEADER_FILL}")),
             ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
             ("BACKGROUND", (1, 1), (1, n), colors.HexColor(f"#{RATE_FILL}")),
-            ("BACKGROUND", (2, 1), (2, n), colors.HexColor(f"#{USAGE_FILL}")),
+            ("BACKGROUND", (5, 1), (5, n), colors.HexColor(f"#{USAGE_FILL}")),
             ("BACKGROUND", (6, 1), (6, n), colors.HexColor(f"#{TOTAL_FILL}")),
             # Factory Sales row — stronger green.
             ("BACKGROUND", (0, n + 1), (-1, n + 1), colors.HexColor(f"#{SUBTOTAL_FILL}")),
@@ -208,11 +215,11 @@ def build_days_pdf(days: list[DayOut]) -> bytes:
             ("TOPPADDING", (0, 0), (-1, -1), 2.5),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
         ]
-        # NET.PIC cell red when negative, green otherwise (col index 5).
+        # NET.PIC cell red when negative, green otherwise (col index 4 after the reorder).
         for i, s in enumerate(day.sales_lines, start=1):
             fill, text = (NEGATIVE_FILL, NEGATIVE_TEXT) if s.net_pic < 0 else (TOTAL_FILL, TOTAL_TEXT)
-            style.append(("BACKGROUND", (5, i), (5, i), colors.HexColor(f"#{fill}")))
-            style.append(("TEXTCOLOR", (5, i), (5, i), colors.HexColor(f"#{text}")))
+            style.append(("BACKGROUND", (4, i), (4, i), colors.HexColor(f"#{fill}")))
+            style.append(("TEXTCOLOR", (4, i), (4, i), colors.HexColor(f"#{text}")))
         table.setStyle(TableStyle(style))
         story.append(table)
         story.append(spacer(0.2))
@@ -254,12 +261,19 @@ def build_days_pdf(days: list[DayOut]) -> bytes:
             cf_rows = [["Carry Forward", "Amount (Rs.)"]]
             for cf in day.carry_forward_lines:
                 cf_rows.append([cf.name, f"{cf.amount:g}"])
+            # Informational total — deliberately NOT part of Cash on Hand.
+            cf_rows.append(["Total", f"{sum(cf.amount for cf in day.carry_forward_lines):.2f}"])
+            cf_last = len(cf_rows) - 1
             cf_table = Table(cf_rows, colWidths=[8 * cm, 4 * cm])
             cf_table.setStyle(
                 TableStyle(
                     [
                         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(f"#{HEADER_FILL}")),
                         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("BACKGROUND", (0, cf_last), (-1, cf_last), colors.HexColor(f"#{SUBTOTAL_FILL}")),
+                        ("TEXTCOLOR", (0, cf_last), (-1, cf_last), colors.HexColor(f"#{SUBTOTAL_TEXT}")),
+                        ("FONTNAME", (0, cf_last), (-1, cf_last), "Helvetica-Bold"),
+                        ("ALIGN", (1, 0), (1, -1), "RIGHT"),
                         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor(f"#{BORDER_COLOR}")),
                         ("FONTSIZE", (0, 0), (-1, -1), 8),
                         ("TOPPADDING", (0, 0), (-1, -1), 2.5),
@@ -312,8 +326,8 @@ def build_stock_excel(rows: list[StockRowOut], year: int, month: int) -> bytes:
 
 def build_stock_pdf(rows: list[StockRowOut], year: int, month: int) -> bytes:
     buffer = BytesIO()
-    doc = new_document(buffer, "Rojmel Stock")
-    story = title_block("Rojmel — Stock", f"{calendar.month_name[month]} {year}")
+    doc = new_document(buffer, "Rojmed Stock")
+    story = title_block("Rojmed — Stock", f"{calendar.month_name[month]} {year}")
 
     table_rows = [["Product", "Rate", "Opening", "Closing", "Net"]]
     for row in rows:

@@ -1,5 +1,5 @@
 import { api } from '../../api/client'
-import type { Batch, BatchInput, HistorySnapshot } from './types'
+import type { Batch, BatchInput, BatchRecap, HistorySnapshot } from './types'
 
 const BASE = '/shakkarpara'
 
@@ -12,6 +12,12 @@ export const shakkarparaApi = {
     return api.get<Batch[]>(`${BASE}/batches${suffix}`)
   },
   get: (id: number) => api.get<Batch>(`${BASE}/batches/${id}`),
+  /** Last N batches reduced to the few numbers tracked by eye while entering a batch. */
+  recap: (limit = 10, excludeId?: number) => {
+    const qs = new URLSearchParams({ limit: String(limit) })
+    if (excludeId != null) qs.set('exclude_id', String(excludeId))
+    return api.get<BatchRecap[]>(`${BASE}/batches/recap?${qs}`)
+  },
   create: (data: BatchInput) => api.post<Batch>(`${BASE}/batches`, data),
   update: (id: number, data: BatchInput) => api.put<Batch>(`${BASE}/batches/${id}`, data),
   remove: (id: number) => api.delete(`${BASE}/batches/${id}`),

@@ -84,13 +84,14 @@ function MoneyLinesEditor({
           </button>
         </div>
         {/* Amount first (the order they type in), then the wide Description,
-            then a compact Note. Each column gets its own band + divider. */}
+            then a compact Note. Each column gets its own band + divider.
+            Description is the column that actually needs room, so Note is kept
+            tight (with reduced input padding, see .money-table td.col-note). */}
         <table className="data-table entry-table money-table">
           <colgroup>
             <col style={{ width: 110 }} />
             <col />
-            {/* fixed width = the ~12 characters they wanted visible */}
-            <col style={{ width: 140 }} />
+            <col style={{ width: 110 }} />
             <col style={{ width: 48 }} />
           </colgroup>
           <thead>
@@ -198,17 +199,36 @@ export function DayFormPage() {
   const [expenseLines, setExpenseLines] = useState<MoneyLine[]>([])
   const [carryForward, setCarryForward] = useState<CarryForwardLine[]>([])
   const seeded = useRef(false)
+  // Set once the worker touches the carry-forward rows or the notes, so changing
+  // the date afterwards never overwrites what they already typed.
+  const inheritTouched = useRef(false)
+  const [inheritSeeded, setInheritSeeded] = useState(false)
 
   useEffect(() => {
     if (!isNew || seeded.current || !defaultProducts) return
     seeded.current = true
     setSalesLines(defaultProducts.map((p) => ({ product: p.name, rate: p.rate, qty: 0, opening_pic: 0, closing_pic: 0 })))
-    // seed the two sample carry-forward names the client asked for
-    setCarryForward([
-      { name: 'Chirag bhai', amount: 0 },
-      { name: 'Chetna ben', amount: 0 },
-    ])
   }, [isNew, defaultProducts])
+
+  // Carry forward + notes roll over from the most recent day BEFORE this one
+  // (so a skipped Sunday doesn't break the chain). Forward-only: this is a copy,
+  // and nothing done here ever reaches back to change the source day.
+  const { data: carryIn } = useQuery({
+    queryKey: ['rojmel-carry-in', date],
+    queryFn: () => rojmelApi.carryIn(date),
+    enabled: isNew && !!date,
+  })
+
+  useEffect(() => {
+    if (!isNew || !carryIn || inheritTouched.current) return
+    // Only the one named row carries; any other name stays on the day it was typed.
+    setCarryForward([{ name: carryIn.carry_forward_name, amount: carryIn.carry_forward_amount }])
+    setNotes(carryIn.notes ?? '')
+    // batched with the two setters above, so the unsaved-work guard below snapshots
+    // its baseline AFTER the inherited values land (otherwise a fresh day would
+    // look dirty the moment it opened)
+    setInheritSeeded(true)
+  }, [isNew, carryIn])
 
   useEffect(() => {
     if (!existing) return
@@ -300,6 +320,7 @@ export function DayFormPage() {
 
   // ---- carry-forward: name is free-edit, amount is locked behind the admin password ----
   function updateCarry(i: number, patch: Partial<CarryForwardLine>) {
+    inheritTouched.current = true
     setCarryForward((rows) => rows.map((row, idx) => (idx === i ? { ...row, ...patch } : row)))
   }
   async function openCarryAmount(index: number) {
@@ -310,8 +331,25 @@ export function DayFormPage() {
     lockEdit() // re-lock immediately, next amount edit re-prompts
   }
   async function removeCarry(index: number) {
-    if (await requireEdit()) setCarryForward((rows) => rows.filter((_, i) => i !== index))
+    if (!(await requireEdit())) return
+    inheritTouched.current = true
+    setCarryForward((rows) => rows.filter((_, i) => i !== index))
   }
+
+  function addCarry() {
+    inheritTouched.current = true
+    setCarryForward((rows) => [...rows, { name: '', amount: 0 }])
+  }
+
+  function updateNotes(v: string | null) {
+    inheritTouched.current = true
+    setNotes(v ?? '')
+  }
+
+  // Shown inside the Carry Forward table only. Deliberately NOT part of income,
+  // kharcho or cash on hand — it mirrors the informational block that sits below
+  // the totals in the client's Excel.
+  const carryForwardTotal = carryForward.reduce((sum, c) => sum + c.amount, 0)
 
   function buildPayload(): DayInput {
     // The editors always show a few blank rows to type into — never save them.
@@ -351,7 +389,9 @@ export function DayFormPage() {
   // Guard the sheet: leaving (or an app update) must not silently drop edits.
   const guard = useUnsavedGuard({
     payload: dirtyKey,
-    ready: isNew ? salesLines.length > 0 : !!existing,
+    // wait for the inherited carry-forward/notes too, or the baseline snapshots
+    // before they land and a freshly opened day reads as unsaved
+    ready: isNew ? salesLines.length > 0 && inheritSeeded : !!existing,
     save: async () => {
       await saveMutation.mutateAsync(buildPayload())
     },
@@ -367,7 +407,7 @@ export function DayFormPage() {
           title={isNew ? 'New day' : `Day — ${date}`}
           subtitle="Daily sales and cash"
           backTo="/rojmel"
-          backLabel={t('rojmel.title', 'Rojmel')}
+          backLabel={t('rojmel.title', 'Rojmed')}
           actions={
             <>
               <button className="btn btn-primary" onClick={handleSave} disabled={saveMutation.isPending} title="Save (Ctrl+S)">
@@ -404,7 +444,7 @@ export function DayFormPage() {
             style={{ border: '1px solid var(--tint-negative-text)', color: 'var(--tint-negative-text)', backgroundColor: 'var(--tint-negative-bg)' }}
           >
             {(saveMutation.error as Error).message.includes('409')
-              ? 'A Rojmel entry already exists for this date.'
+              ? 'A Rojmed entry already exists for this date.'
               : 'Could not save — please try again.'}
           </div>
         )}
@@ -454,14 +494,16 @@ export function DayFormPage() {
               Add product
             </button>
           </div>
+          {/* Column order per the client: the stock trio sits together, then the
+              Sales count they type, then the money. */}
           <table className="data-table entry-table">
             <colgroup>
               <col />
               <col style={{ width: '11%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '11%' }} />
               <col style={{ width: '12%' }} />
-              <col style={{ width: '11%' }} />
-              <col style={{ width: '11%' }} />
-              <col style={{ width: '11%' }} />
               <col style={{ width: '14%' }} />
               <col style={{ width: 72 }} />
             </colgroup>
@@ -472,7 +514,6 @@ export function DayFormPage() {
                   {t('rojmel.rate', 'Rate')} (₹)
                   <Lock className="col-lock-head-ico" size={11} />
                 </th>
-                <th className="col-editable-head num-right">{t('rojmel.qty', 'Sales')}</th>
                 <th className="col-locked-head num-right" title="Opening pieces (morning count)">
                   OPP.PIC
                   <Lock className="col-lock-head-ico" size={11} />
@@ -482,6 +523,7 @@ export function DayFormPage() {
                   <Lock className="col-lock-head-ico" size={11} />
                 </th>
                 <th className="num-right" title="Net = opening − closing">NET.PIC</th>
+                <th className="col-editable-head num-right">{t('rojmel.qty', 'Sales')}</th>
                 <th className="col-total-head">{t('rojmel.total', 'Total')}</th>
                 <th />
               </tr>
@@ -493,9 +535,6 @@ export function DayFormPage() {
                   <tr key={i} className="reveal-row">
                     <td style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.product || <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
                     <td className="col-locked num-center">{s.rate || 0}</td>
-                    <td className="col-editable">
-                      <NumberField className="field-inline num-right" value={s.qty} onChange={(v) => updateSalesLine(i, { qty: v })} ariaLabel="Sales pieces" entryFlow />
-                    </td>
                     <td className="col-stock">
                       {stockUnlocked ? (
                         <NumberField className="field-inline" value={s.opening_pic} onChange={(v) => updateSalesLine(i, { opening_pic: v })} ariaLabel="Opening pieces" entryFlow="opp" />
@@ -515,6 +554,9 @@ export function DayFormPage() {
                       )}
                     </td>
                     <td className="col-total" style={{ color: net < 0 ? 'var(--net-neg)' : 'var(--net-pos)', fontWeight: 700 }}>{net}</td>
+                    <td className="col-editable">
+                      <NumberField className="field-inline num-right" value={s.qty} onChange={(v) => updateSalesLine(i, { qty: v })} ariaLabel="Sales pieces" entryFlow />
+                    </td>
                     <td className="col-total">₹{lines[i]?.total.toFixed(2)}</td>
                     <td className="col-actions">
                       <button onClick={() => openEditProduct(i)} className="icon-btn reveal-target" aria-label="Edit product" title="Edit name / rate (password)">
@@ -571,7 +613,7 @@ export function DayFormPage() {
               Carry Forward
             </span>
             <button
-              onClick={() => setCarryForward((rows) => [...rows, { name: '', amount: 0 }])}
+              onClick={addCarry}
               className="btn btn-cat btn-sm"
               style={{ borderWidth: 1, borderStyle: 'solid' }}
               title="Add a name"
@@ -591,7 +633,7 @@ export function DayFormPage() {
             <thead>
               <tr>
                 <th className="col-amt col-locked-head amt-cell">
-                  Carry forward (₹)
+                  Amount (₹)
                   <Lock className="col-lock-head-ico" size={11} />
                 </th>
                 <th>Name</th>
@@ -631,12 +673,22 @@ export function DayFormPage() {
                   </td>
                 </tr>
               )}
+              {/* Informational total — deliberately NOT in income, kharcho or cash on hand */}
+              {carryForward.length > 0 && (
+                <tr className="subtotal-row">
+                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                    ₹{carryForwardTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td>{t('rojmel.total', 'Total')}</td>
+                  <td />
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
 
           <div className="flex-1">
-            <NotesGrid value={notes || null} onChange={(v) => setNotes(v ?? '')} className="" />
+            <NotesGrid value={notes || null} onChange={updateNotes} className="" />
           </div>
         </div>
 

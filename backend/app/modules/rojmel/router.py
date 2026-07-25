@@ -11,7 +11,7 @@ from app.core.backup import backup_now
 from app.core.logging import logger
 from app.db import get_db
 from app.modules.rojmel import engine, export as export_module
-from app.modules.rojmel.defaults import DEFAULT_PRODUCTS
+from app.modules.rojmel.defaults import CARRY_FORWARD_NAME, DEFAULT_PRODUCTS
 from app.modules.rojmel.models import (
     RojmelCarryForwardLine,
     RojmelDay,
@@ -21,7 +21,15 @@ from app.modules.rojmel.models import (
     RojmelSalesLine,
     RojmelStock,
 )
-from app.modules.rojmel.schemas import DayIn, DayOut, DefaultProductIn, HistorySnapshotOut, StockRowIn, StockRowOut
+from app.modules.rojmel.schemas import (
+    CarryInOut,
+    DayIn,
+    DayOut,
+    DefaultProductIn,
+    HistorySnapshotOut,
+    StockRowIn,
+    StockRowOut,
+)
 
 router = APIRouter(prefix="/api/rojmel", tags=["rojmel"])
 
@@ -175,6 +183,42 @@ def export_days_pdf(year: int | None = None, month: int | None = None, db: Sessi
         content=content,
         media_type="application/pdf",
         headers={"Content-Disposition": 'attachment; filename="rojmel.pdf"'},
+    )
+
+
+# NOTE: must stay ABOVE /days/{day_id} — routes match in registration order and
+# "carry-in" would otherwise be parsed as an int day_id and 422. Same reason the
+# /days/export/* routes sit above it.
+@router.get("/days/carry-in", response_model=CarryInOut)
+def get_carry_in(before: date_type, db: Session = Depends(get_db)):
+    """What a brand-new day inherits from the most recent day BEFORE `before`.
+
+    Read-only and forward-only: the source day is never touched, and whatever the
+    worker does with these values today stays on today's entry. `before` is
+    strictly exclusive and we take the newest earlier day, so skipping a Sunday or
+    a holiday doesn't break the chain.
+    """
+    previous = (
+        db.query(RojmelDay)
+        .filter(RojmelDay.date < before)
+        .order_by(RojmelDay.date.desc())
+        .first()
+    )
+    if previous is None:
+        return CarryInOut(source_date=None, carry_forward_name=CARRY_FORWARD_NAME, carry_forward_amount=0.0, notes=None)
+
+    target = CARRY_FORWARD_NAME.strip().lower()
+    amount = 0.0
+    for line in previous.carry_forward_lines:
+        if line.name.strip().lower() == target:
+            amount = line.amount
+            break
+
+    return CarryInOut(
+        source_date=previous.date,
+        carry_forward_name=CARRY_FORWARD_NAME,
+        carry_forward_amount=amount,
+        notes=previous.notes,
     )
 
 

@@ -52,7 +52,7 @@ export function StockPage() {
         title={t('rojmel.stock', 'Stock')}
         subtitle="Monthly stock reconciliation"
         backTo="/rojmel"
-        backLabel={t('rojmel.title', 'Rojmel')}
+        backLabel={t('rojmel.title', 'Rojmed')}
         actions={
           <>
             <select className="field w-auto" value={month} onChange={(e) => setMonth(Number(e.target.value))}>

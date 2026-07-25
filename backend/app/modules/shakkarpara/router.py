@@ -10,7 +10,14 @@ from app.core.logging import logger
 from app.db import get_db
 from app.modules.shakkarpara import engine, export as export_module
 from app.modules.shakkarpara.models import Batch, BatchHistory, BatchIngredient, OilSit
-from app.modules.shakkarpara.schemas import BatchIn, BatchOut, HistorySnapshotOut, IngredientIn, OilSitIn
+from app.modules.shakkarpara.schemas import (
+    BatchIn,
+    BatchOut,
+    BatchRecapOut,
+    HistorySnapshotOut,
+    IngredientIn,
+    OilSitIn,
+)
 
 router = APIRouter(prefix="/api/shakkarpara", tags=["shakkarpara"])
 
@@ -184,6 +191,55 @@ def export_pdf(year: int | None = None, month: int | None = None, db: Session = 
         media_type="application/pdf",
         headers={"Content-Disposition": 'attachment; filename="shakkarpara.pdf"'},
     )
+
+
+# NOTE: must stay ABOVE /batches/{batch_id} — routes match in registration order and
+# "recap" would otherwise be parsed as an int batch_id and 422. Same as the export routes.
+@router.get("/batches/recap", response_model=list[BatchRecapOut])
+def get_batch_recap(limit: int = 10, exclude_id: int | None = None, db: Session = Depends(get_db)):
+    """The last `limit` batches, newest first, reduced to the handful of numbers the
+    client tracks by eye while entering a new batch.
+
+    Deliberately NOT the /batches list endpoint: that returns every batch with every
+    ingredient row (~114 batches x ~10 rows of real history) just to show ten lines.
+    """
+    query = db.query(Batch)
+    if exclude_id is not None:
+        query = query.filter(Batch.id != exclude_id)
+    batches = query.order_by(Batch.date.desc(), Batch.id.desc()).limit(max(1, min(limit, 50))).all()
+
+    out: list[BatchRecapOut] = []
+    for batch in batches:
+        oil_rate = oil_vaprayel_rate = menda_rate = menda_katta = None
+        for ing in batch.ingredients:
+            name = ing.name.strip().lower()
+            # is_oil_vaprayel is the reliable marker for the auto row; the plain Oil row
+            # is the other one whose name starts with "oil". Prefix matching also covers
+            # the older sheet spellings ("oil ret", "menda ret").
+            if ing.is_oil_vaprayel or name.startswith("oil vaprayel"):
+                oil_vaprayel_rate = ing.rate
+            elif name.startswith("oil"):
+                oil_rate = ing.rate
+            elif name.startswith("menda"):
+                menda_rate = ing.rate
+                menda_katta = ing.usage  # "menda katta" = the Vaprash on the Menda row
+
+        result = engine.compute_batch(
+            _to_engine_lines(batch), _to_engine_oil_sit(batch), batch.production_qty, batch.extra_per_unit
+        )
+        out.append(
+            BatchRecapOut(
+                id=batch.id,
+                date=batch.date,
+                oil_rate=oil_rate,
+                oil_vaprayel_rate=oil_vaprayel_rate,
+                menda_rate=menda_rate,
+                menda_katta=menda_katta,
+                production_qty=batch.production_qty,
+                padtar=result.padtar,
+            )
+        )
+    return out
 
 
 @router.get("/batches/{batch_id}", response_model=BatchOut)

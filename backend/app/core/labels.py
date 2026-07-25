@@ -21,7 +21,10 @@ DEFAULT_LABELS: dict[str, tuple[str, str]] = {
     "app.name": ("Padtar", "Padtar"),
     "app.tagline": ("Factory Ledger", "Factory Ledger"),
     "nav.dashboard": ("Dashboard", "Dashboard"),
-    "nav.rojmel": ("Rojmel", "Daily Sales"),
+    # NOTE: the label KEYS stay "rojmel.*" (internal); only the visible word is
+    # "Rojmed". See the naming table in docs/PROJECT-STATE.md — they are not the
+    # same word and must not be reconciled.
+    "nav.rojmel": ("Rojmed", "Daily Sales"),
     "nav.shakkarpara": ("Shakkarpara", "Batch Costing"),
     "nav.settings": ("Settings", "Settings"),
     "shakkarpara.title": ("Shakkarpara", "Batch Costing"),
@@ -50,7 +53,7 @@ DEFAULT_LABELS: dict[str, tuple[str, str]] = {
     "ingredient.masala": ("Masala", "Spice Mix"),
     "ingredient.oil_vaprayel": ("Oil Vaprayel", "Oil Used"),
     "ingredient.mansho": ("Worker", "Worker"),
-    "rojmel.title": ("Rojmel", "Daily Sales"),
+    "rojmel.title": ("Rojmed", "Daily Sales"),
     "rojmel.date": ("Date", "Date"),
     "rojmel.product": ("Product", "Product"),
     "rojmel.rate": ("Rate", "Rate"),
@@ -89,6 +92,10 @@ class Label(Base):
 # key -> (old_gujarati, old_english, new_gujarati, new_english)
 _RELABELS: dict[str, tuple[str, str, str, str]] = {
     "rojmel.qty": ("Pic", "Pieces", "Sales", "Sales"),
+    # The client's own word is "Rojmed", not "Rojmel". Existing v2/v3 installs
+    # already seeded the old spelling, so correct it here on startup.
+    "nav.rojmel": ("Rojmel", "Daily Sales", "Rojmed", "Daily Sales"),
+    "rojmel.title": ("Rojmel", "Daily Sales", "Rojmed", "Daily Sales"),
 }
 
 

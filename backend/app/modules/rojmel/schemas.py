@@ -44,6 +44,17 @@ class CarryForwardLineOut(CarryForwardLineIn):
     id: int
 
 
+class CarryInOut(BaseModel):
+    """What a brand-new day inherits from the most recent earlier day: the one
+    named carry-forward amount, and the whole notes list. Forward-only — reading
+    this never changes the source day."""
+
+    source_date: date | None = None
+    carry_forward_name: str
+    carry_forward_amount: float = 0.0
+    notes: str | None = None
+
+
 class DayIn(BaseModel):
     date: date
     notes: str | None = None
