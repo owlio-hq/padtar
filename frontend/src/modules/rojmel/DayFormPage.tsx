@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -21,6 +21,8 @@ import { useEntryFlow } from '../../components/useEntryFlow'
 import { useUnsavedGuard } from '../../components/useUnsavedGuard'
 import { useSaveShortcut } from '../../components/useSaveShortcut'
 import { saveExport } from '../../system/saveExport'
+import { useColumnOrder } from '../../components/useColumnOrder'
+import { ColumnOrderEditor, type ColumnDef } from '../../components/ColumnOrderEditor'
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
@@ -40,6 +42,7 @@ function MoneyLinesEditor({
   color,
   icon: Icon,
   flow,
+  gridTable,
   lines,
   onChange,
 }: {
@@ -48,6 +51,8 @@ function MoneyLinesEditor({
   icon: LucideIcon
   /** entry-flow group so Enter walks down THIS table's amount column only */
   flow: string
+  /** Scopes arrow-key grid navigation to this table */
+  gridTable: string
   lines: MoneyLine[]
   onChange: (lines: MoneyLine[]) => void
 }) {
@@ -117,8 +122,9 @@ function MoneyLinesEditor({
                       onChange={(v) => update(i, { amount: v })}
                       ariaLabel="Amount"
                       entryFlow={flow}
-                      /* only the first row hints — repeated down every row it
-                         reads as if the rows are already filled in */
+                      gridRow={i}
+                      gridCol={0}
+                      gridTable={gridTable}
                       placeholder={i === 0 ? '0' : ''}
                     />
                   </td>
@@ -128,6 +134,9 @@ function MoneyLinesEditor({
                       value={l.description}
                       onChange={(e) => update(i, { description: e.target.value })}
                       placeholder={i === 0 ? 'What for…' : ''}
+                      data-grid-row={i}
+                      data-grid-col={1}
+                      data-grid-table={gridTable}
                     />
                   </td>
                   <td className={`col-note${started && !l.note.trim() ? ' is-missing' : ''}`}>
@@ -136,6 +145,9 @@ function MoneyLinesEditor({
                       value={l.note}
                       onChange={(e) => update(i, { note: e.target.value })}
                       placeholder={i === 0 ? 'Note' : ''}
+                      data-grid-row={i}
+                      data-grid-col={2}
+                      data-grid-table={gridTable}
                     />
                   </td>
                   <td className="col-actions">
@@ -173,13 +185,31 @@ export function DayFormPage() {
   const queryClient = useQueryClient()
   const { t } = useLabels()
   const { requireEdit, lockEdit } = useAuth()
-  const entryFlow = useEntryFlow<HTMLDivElement>()
+  const entryFlow = useEntryFlow<HTMLDivElement>(unlockStock)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [pendingRemoveSales, setPendingRemoveSales] = useState<number | null>(null)
   const [editing, setEditing] = useState<{ index: number; isNew: boolean } | null>(null)
   const [cfEdit, setCfEdit] = useState<number | null>(null)
   const [stockUnlocked, setStockUnlocked] = useState(false)
   const stockTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const pendingFocusRef = useRef<{ table: string; row: number; col: number } | null>(null)
+
+  useEffect(() => {
+    const pf = pendingFocusRef.current
+    if (!pf || !stockUnlocked) return
+    pendingFocusRef.current = null
+    requestAnimationFrame(() => {
+      const el = entryFlow.containerRef.current?.querySelector<HTMLElement>(
+        `[data-grid-table="${pf.table}"][data-grid-row="${pf.row}"][data-grid-col="${pf.col}"]:not([data-grid-locked])`,
+      )
+      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+        el.focus()
+        el.select()
+      } else if (el) {
+        el.focus()
+      }
+    })
+  }, [stockUnlocked, entryFlow.containerRef])
 
   const { data: existing } = useQuery({
     queryKey: ['rojmel-day', dayId],
@@ -198,6 +228,22 @@ export function DayFormPage() {
   const [incomeLines, setIncomeLines] = useState<MoneyLine[]>([])
   const [expenseLines, setExpenseLines] = useState<MoneyLine[]>([])
   const [carryForward, setCarryForward] = useState<CarryForwardLine[]>([])
+  const [tallyInputs, setTallyInputs] = useState<number[]>([])
+  const [showColEditor, setShowColEditor] = useState(false)
+
+  const SALES_COL_DEFAULT = useMemo(() => ['rate', 'opp', 'clo', 'net', 'sales', 'net_sales', 'total'], [])
+  const { order: salesColOrder, saveOrder: saveSalesColOrder } = useColumnOrder('rojmel_sales', SALES_COL_DEFAULT)
+
+  const SALES_COL_DEFS: ColumnDef[] = useMemo(() => [
+    { key: 'rate', label: 'Rate (₹)' },
+    { key: 'opp', label: 'OPP.PIC' },
+    { key: 'clo', label: 'CLO.PIC' },
+    { key: 'net', label: 'NET.PIC' },
+    { key: 'sales', label: 'Sales' },
+    { key: 'net_sales', label: 'NET.SALES' },
+    { key: 'total', label: 'Total' },
+  ], [])
+
   const seeded = useRef(false)
   // Set once the worker touches the carry-forward rows or the notes, so changing
   // the date afterwards never overwrites what they already typed.
@@ -221,12 +267,10 @@ export function DayFormPage() {
 
   useEffect(() => {
     if (!isNew || !carryIn || inheritTouched.current) return
-    // Only the one named row carries; any other name stays on the day it was typed.
-    setCarryForward([{ name: carryIn.carry_forward_name, amount: carryIn.carry_forward_amount }])
+    setCarryForward(
+      (carryIn.carry_forward_lines ?? []).map((c) => ({ name: c.name, amount: c.amount, carry_forward: false })),
+    )
     setNotes(carryIn.notes ?? '')
-    // batched with the two setters above, so the unsaved-work guard below snapshots
-    // its baseline AFTER the inherited values land (otherwise a fresh day would
-    // look dirty the moment it opened)
     setInheritSeeded(true)
   }, [isNew, carryIn])
 
@@ -267,8 +311,33 @@ export function DayFormPage() {
     },
   })
 
+  useEffect(() => {
+    setTallyInputs((prev) => {
+      if (prev.length === salesLines.length) return prev
+      const next = new Array(salesLines.length).fill(0)
+      for (let i = 0; i < Math.min(prev.length, next.length); i++) next[i] = prev[i]
+      return next
+    })
+  }, [salesLines.length])
+
   function updateSalesLine(i: number, patch: Partial<SalesLine>) {
     setSalesLines((rows) => rows.map((row, idx) => (idx === i ? { ...row, ...patch } : row)))
+  }
+
+  function updateTally(i: number, value: number) {
+    setTallyInputs((prev) => {
+      const next = [...prev]
+      next[i] = value
+      return next
+    })
+  }
+
+  function handleTallyEnter(i: number, e: React.KeyboardEvent) {
+    if (e.key !== 'Enter') return
+    const tallyValue = tallyInputs[i] || 0
+    if (tallyValue === 0) return
+    updateSalesLine(i, { qty: (salesLines[i].qty || 0) + tallyValue })
+    updateTally(i, 0)
   }
 
   // ---- password-gated structural actions ----
@@ -289,8 +358,15 @@ export function DayFormPage() {
 
   // Opening (OPP.PIC) is locked in its own 'stock' scope so unlocking it does NOT
   // loosen rate edits. One unlock keeps every opening cell editable for 5 minutes.
-  async function unlockStock() {
-    if (!(await requireEdit('stock'))) return
+  async function unlockStock(e?: React.MouseEvent) {
+    if (e?.currentTarget instanceof HTMLElement) {
+      const t = e.currentTarget
+      const row = t.getAttribute('data-grid-row')
+      const col = t.getAttribute('data-grid-col')
+      const table = t.getAttribute('data-grid-table')
+      if (row && col) pendingFocusRef.current = { table: table ?? '', row: Number(row), col: Number(col) }
+    }
+    if (!(await requireEdit('stock'))) { pendingFocusRef.current = null; return }
     setStockUnlocked(true)
     clearTimeout(stockTimer.current)
     stockTimer.current = setTimeout(() => {
@@ -338,7 +414,7 @@ export function DayFormPage() {
 
   function addCarry() {
     inheritTouched.current = true
-    setCarryForward((rows) => [...rows, { name: '', amount: 0 }])
+    setCarryForward((rows) => [...rows, { name: '', amount: 0, carry_forward: false }])
   }
 
   function updateNotes(v: string | null) {
@@ -382,7 +458,7 @@ export function DayFormPage() {
     sales: salesLines.map((s) => [s.product, s.rate, s.qty, s.opening_pic, s.closing_pic]),
     income: incomeLines.map((m) => [m.description, m.amount, m.note]),
     expense: expenseLines.map((m) => [m.description, m.amount, m.note]),
-    carry: carryForward.map((c) => [c.name, c.amount]),
+    carry: carryForward.map((c) => [c.name, c.amount, c.carry_forward]),
   })
   dirtyKeyRef.current = dirtyKey
 
@@ -489,97 +565,106 @@ export function DayFormPage() {
               <ShoppingCart size={16} />
               Daily sales
             </span>
-            <button onClick={openAddProduct} className="btn btn-cat btn-sm" style={{ borderWidth: 1, borderStyle: 'solid' }} title="Add a product">
-              <Plus size={13} />
-              Add product
-            </button>
+            <div className="flex gap-2">
+              <button onClick={() => setShowColEditor(true)} className="btn btn-cat btn-sm" style={{ borderWidth: 1, borderStyle: 'solid' }} title="Reorder columns">
+                Edit table
+              </button>
+              <button onClick={openAddProduct} className="btn btn-cat btn-sm" style={{ borderWidth: 1, borderStyle: 'solid' }} title="Add a product">
+                <Plus size={13} />
+                Add product
+              </button>
+            </div>
           </div>
-          {/* Column order per the client: the stock trio sits together, then the
-              Sales count they type, then the money. */}
-          <table className="data-table entry-table">
-            <colgroup>
-              <col />
-              <col style={{ width: '11%' }} />
-              <col style={{ width: '11%' }} />
-              <col style={{ width: '11%' }} />
-              <col style={{ width: '11%' }} />
-              <col style={{ width: '12%' }} />
-              <col style={{ width: '14%' }} />
-              <col style={{ width: 72 }} />
-            </colgroup>
-            <thead>
-              <tr>
-                <th>{t('rojmel.product', 'Product')}</th>
-                <th className="col-locked-head num-center">
-                  {t('rojmel.rate', 'Rate')} (₹)
-                  <Lock className="col-lock-head-ico" size={11} />
-                </th>
-                <th className="col-locked-head num-right" title="Opening pieces (morning count)">
-                  OPP.PIC
-                  <Lock className="col-lock-head-ico" size={11} />
-                </th>
-                <th className="col-locked-head num-right" title="Closing pieces (evening count)">
-                  CLO.PIC
-                  <Lock className="col-lock-head-ico" size={11} />
-                </th>
-                <th className="num-right" title="Net = opening − closing">NET.PIC</th>
-                <th className="col-editable-head num-right">{t('rojmel.qty', 'Sales')}</th>
-                <th className="col-total-head">{t('rojmel.total', 'Total')}</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {salesLines.map((s, i) => {
-                const net = lines[i]?.net_pic ?? 0
-                return (
-                  <tr key={i} className="reveal-row">
-                    <td style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.product || <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
-                    <td className="col-locked num-center">{s.rate || 0}</td>
-                    <td className="col-stock">
-                      {stockUnlocked ? (
-                        <NumberField className="field-inline" value={s.opening_pic} onChange={(v) => updateSalesLine(i, { opening_pic: v })} ariaLabel="Opening pieces" entryFlow="opp" />
-                      ) : (
-                        <button className="stock-locked" onClick={unlockStock} title="Click to edit opening (password needed)">
-                          {s.opening_pic || 0}
+          {(() => {
+            const colWidths: Record<string, string | number> = { rate: '10%', opp: '10%', clo: '10%', net: '9%', sales: '10%', net_sales: '9%', total: '12%' }
+            const gridColMap: Record<string, number> = {}
+            let gc = 0
+            for (const k of salesColOrder) {
+              if (k === 'opp' || k === 'clo' || k === 'sales') { gridColMap[k] = gc; gc++ }
+            }
+            const headCells: Record<string, React.ReactNode> = {
+              rate: <th key="rate" className="col-locked-head num-center">{t('rojmel.rate', 'Rate')} (₹)<Lock className="col-lock-head-ico" size={11} /></th>,
+              opp: <th key="opp" className="col-locked-head num-right" title="Opening pieces (morning count)">OPP.PIC<Lock className="col-lock-head-ico" size={11} /></th>,
+              clo: <th key="clo" className="col-locked-head num-right" title="Closing pieces (evening count)">CLO.PIC<Lock className="col-lock-head-ico" size={11} /></th>,
+              net: <th key="net" className="num-right" title="Net = opening − closing">NET.PIC</th>,
+              sales: <th key="sales" className="col-editable-head num-right">{t('rojmel.qty', 'Sales')}</th>,
+              net_sales: <th key="net_sales" className="num-right" title="Accumulated sales total">NET.SALES</th>,
+              total: <th key="total" className="col-total-head">{t('rojmel.total', 'Total')}</th>,
+            }
+            function bodyCells(s: SalesLine, i: number): Record<string, React.ReactNode> {
+              const net = lines[i]?.net_pic ?? 0
+              return {
+                rate: <td key="rate" className="col-locked num-center">{s.rate || 0}</td>,
+                opp: <td key="opp" className="col-stock">
+                  {stockUnlocked ? (
+                    <NumberField className="field-inline" value={s.opening_pic} onChange={(v) => updateSalesLine(i, { opening_pic: v })} ariaLabel="Opening pieces" entryFlow="opp" gridRow={i} gridCol={gridColMap.opp} gridTable="sales" />
+                  ) : (
+                    <button className="stock-locked" onClick={unlockStock} title="Click to edit opening (password needed)" data-grid-row={i} data-grid-col={gridColMap.opp} data-grid-table="sales" data-grid-locked>
+                      {s.opening_pic || 0}
+                    </button>
+                  )}
+                </td>,
+                clo: <td key="clo" className="col-stock">
+                  {stockUnlocked ? (
+                    <NumberField className="field-inline" value={s.closing_pic} onChange={(v) => updateSalesLine(i, { closing_pic: v })} ariaLabel="Closing pieces" entryFlow="clo" gridRow={i} gridCol={gridColMap.clo} gridTable="sales" />
+                  ) : (
+                    <button className="stock-locked" onClick={unlockStock} title="Click to edit closing (password needed)" data-grid-row={i} data-grid-col={gridColMap.clo} data-grid-table="sales" data-grid-locked>
+                      {s.closing_pic || 0}
+                    </button>
+                  )}
+                </td>,
+                net: <td key="net" className="col-total" style={{ color: net < 0 ? 'var(--net-neg)' : 'var(--net-pos)', fontWeight: 700 }}>{net}</td>,
+                sales: <td key="sales" className="col-editable">
+                  <NumberField className="field-inline num-right" value={tallyInputs[i] ?? 0} onChange={(v) => updateTally(i, v)} onKeyDown={(e) => handleTallyEnter(i, e)} ariaLabel="Sales pieces" entryFlow gridRow={i} gridCol={gridColMap.sales} gridTable="sales" />
+                </td>,
+                net_sales: <td key="net_sales" className="col-total" style={{ fontWeight: 700 }}>{s.qty || 0}</td>,
+                total: <td key="total" className="col-total">₹{lines[i]?.total.toFixed(2)}</td>,
+              }
+            }
+            return (
+            <table className="data-table entry-table">
+              <colgroup>
+                <col />
+                {salesColOrder.map((k) => <col key={k} style={{ width: colWidths[k] }} />)}
+                <col style={{ width: 72 }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>{t('rojmel.product', 'Product')}</th>
+                  {salesColOrder.map((k) => headCells[k])}
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {salesLines.map((s, i) => {
+                  const cells = bodyCells(s, i)
+                  return (
+                    <tr key={i} className="reveal-row">
+                      <td style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.product || <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
+                      {salesColOrder.map((k) => cells[k])}
+                      <td className="col-actions">
+                        <button onClick={() => openEditProduct(i)} className="icon-btn reveal-target" aria-label="Edit product" title="Edit name / rate (password)">
+                          <Pencil size={14} />
                         </button>
-                      )}
-                    </td>
-                    <td className="col-stock">
-                      {stockUnlocked ? (
-                        <NumberField className="field-inline" value={s.closing_pic} onChange={(v) => updateSalesLine(i, { closing_pic: v })} ariaLabel="Closing pieces" entryFlow="clo" />
-                      ) : (
-                        <button className="stock-locked" onClick={unlockStock} title="Click to edit closing (password needed)">
-                          {s.closing_pic || 0}
+                        <button onClick={() => requestRemoveSales(i)} className="icon-btn icon-btn-danger reveal-target" aria-label="Remove product" title="Remove (password)">
+                          <Trash2 size={14} />
                         </button>
-                      )}
-                    </td>
-                    <td className="col-total" style={{ color: net < 0 ? 'var(--net-neg)' : 'var(--net-pos)', fontWeight: 700 }}>{net}</td>
-                    <td className="col-editable">
-                      <NumberField className="field-inline num-right" value={s.qty} onChange={(v) => updateSalesLine(i, { qty: v })} ariaLabel="Sales pieces" entryFlow />
-                    </td>
-                    <td className="col-total">₹{lines[i]?.total.toFixed(2)}</td>
-                    <td className="col-actions">
-                      <button onClick={() => openEditProduct(i)} className="icon-btn reveal-target" aria-label="Edit product" title="Edit name / rate (password)">
-                        <Pencil size={14} />
-                      </button>
-                      <button onClick={() => requestRemoveSales(i)} className="icon-btn icon-btn-danger reveal-target" aria-label="Remove product" title="Remove (password)">
-                        <Trash2 size={14} />
-                      </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+                {salesLines.length > 0 && (
+                  <tr className="subtotal-row">
+                    <td colSpan={salesColOrder.length + 1}>{t('rojmel.factory_sales', 'Factory Sales')}</td>
+                    <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                      ₹{factorySales.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                   </tr>
-                )
-              })}
-              {salesLines.length > 0 && (
-                <tr className="subtotal-row">
-                  <td colSpan={6}>{t('rojmel.factory_sales', 'Factory Sales')}</td>
-                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                    ₹{factorySales.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </td>
-                  <td />
-                </tr>
-              )}
-            </tbody>
-          </table>
+                )}
+              </tbody>
+            </table>
+            )
+          })()}
         </div>
 
         <div className="mt-5 flex flex-col gap-5 sm:flex-row">
@@ -588,6 +673,7 @@ export function DayFormPage() {
             color="#10b981"
             icon={TrendingUp}
             flow="income-amt"
+            gridTable="income"
             lines={incomeLines}
             onChange={setIncomeLines}
           />
@@ -596,6 +682,7 @@ export function DayFormPage() {
             color="#ef4444"
             icon={TrendingDown}
             flow="kharcho-amt"
+            gridTable="kharcho"
             lines={expenseLines}
             onChange={setExpenseLines}
           />
@@ -626,12 +713,14 @@ export function DayFormPage() {
               way (and matches the printed sheet). */}
           <table className="data-table entry-table money-table">
             <colgroup>
+              <col style={{ width: 40 }} />
               <col style={{ width: 140 }} />
               <col />
               <col style={{ width: 48 }} />
             </colgroup>
             <thead>
               <tr>
+                <th style={{ textAlign: 'center', padding: '6px 4px' }} title="Check to carry forward to the next day">↻</th>
                 <th className="col-amt col-locked-head amt-cell">
                   Amount (₹)
                   <Lock className="col-lock-head-ico" size={11} />
@@ -645,8 +734,17 @@ export function DayFormPage() {
                 const started = c.name.trim() !== '' || c.amount !== 0
                 return (
                   <tr key={i} className="reveal-row">
+                    <td style={{ textAlign: 'center', padding: '6px 4px' }}>
+                      <input
+                        type="checkbox"
+                        checked={c.carry_forward}
+                        onChange={(e) => updateCarry(i, { carry_forward: e.target.checked })}
+                        title="Carry this row to the next day"
+                        style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#8b5cf6' }}
+                      />
+                    </td>
                     <td className={`col-amt${started && c.amount === 0 ? ' is-missing' : ''}`}>
-                      <button className="stock-locked" onClick={() => openCarryAmount(i)} title="Click to edit (password needed)">
+                      <button className="stock-locked" onClick={() => openCarryAmount(i)} title="Click to edit (password needed)" data-grid-row={i} data-grid-col={0} data-grid-table="carry" data-grid-locked>
                         {c.amount || 0}
                       </button>
                     </td>
@@ -656,6 +754,9 @@ export function DayFormPage() {
                         value={c.name}
                         onChange={(e) => updateCarry(i, { name: e.target.value })}
                         placeholder={i === 0 ? 'Name' : ''}
+                        data-grid-row={i}
+                        data-grid-col={1}
+                        data-grid-table="carry"
                       />
                     </td>
                     <td className="col-actions">
@@ -668,14 +769,14 @@ export function DayFormPage() {
               })}
               {carryForward.length === 0 && (
                 <tr>
-                  <td colSpan={3} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '14px', fontSize: 12 }}>
+                  <td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '14px', fontSize: 12 }}>
                     None yet
                   </td>
                 </tr>
               )}
-              {/* Informational total — deliberately NOT in income, kharcho or cash on hand */}
               {carryForward.length > 0 && (
                 <tr className="subtotal-row">
+                  <td />
                   <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                     ₹{carryForwardTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
@@ -761,6 +862,14 @@ export function DayFormPage() {
         notes={notes || null}
         carryForward={carryForward}
       />
+      {showColEditor && (
+        <ColumnOrderEditor
+          columns={SALES_COL_DEFS}
+          order={salesColOrder}
+          onSave={saveSalesColOrder}
+          onClose={() => setShowColEditor(false)}
+        />
+      )}
     </>
   )
 }

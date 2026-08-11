@@ -20,6 +20,7 @@ export interface CarryForwardLine {
   id?: number
   name: string
   amount: number
+  carry_forward: boolean
 }
 
 export interface Day {
@@ -50,8 +51,7 @@ export interface DayInput {
 /** What a brand-new day inherits from the most recent earlier day. */
 export interface CarryIn {
   source_date: string | null
-  carry_forward_name: string
-  carry_forward_amount: number
+  carry_forward_lines: { name: string; amount: number }[]
   notes: string | null
 }
 

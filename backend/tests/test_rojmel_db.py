@@ -13,7 +13,6 @@ from sqlalchemy.orm import sessionmaker
 import app.db as db
 from app.db import Base, _ADDITIVE_COLUMNS, _apply_additive_migrations
 from app.modules.rojmel import engine as rojmel_engine
-from app.modules.rojmel.defaults import CARRY_FORWARD_NAME
 from app.modules.rojmel.models import RojmelCarryForwardLine, RojmelDay, RojmelSalesLine
 from app.modules.rojmel.router import get_carry_in
 
@@ -135,85 +134,87 @@ def _carry_session(tmp_path, name):
 
 def _day(on, carry=(), notes=None):
     day = RojmelDay(date=on, notes=notes)
-    for i, (cf_name, amount) in enumerate(carry):
-        day.carry_forward_lines.append(RojmelCarryForwardLine(name=cf_name, amount=amount, sort_order=i))
+    for i, (cf_name, amount, *rest) in enumerate(carry):
+        cf = rest[0] if rest else False
+        day.carry_forward_lines.append(RojmelCarryForwardLine(name=cf_name, amount=amount, sort_order=i, carry_forward=cf))
     return day
 
 
-def test_carry_in_pulls_named_row_from_previous_day(tmp_path):
+def test_carry_in_pulls_checked_rows_from_previous_day(tmp_path):
     Session = _carry_session(tmp_path, "carryin.db")
     session = Session()
-    session.add(_day(date(2026, 7, 19), carry=[("Chirag bhai", 4200), (CARRY_FORWARD_NAME, 10000)], notes='[["lent to X","500"]]'))
+    session.add(_day(date(2026, 7, 19), carry=[("Chirag bhai", 4200, False), ("Chetna ben", 10000, True)], notes='[["lent to X","500"]]'))
     session.commit()
 
     result = get_carry_in(before=date(2026, 7, 20), db=session)
     assert result.source_date == date(2026, 7, 19)
-    assert result.carry_forward_name == CARRY_FORWARD_NAME
-    assert result.carry_forward_amount == 10000  # only the named row, not Chirag bhai's 4200
+    assert len(result.carry_forward_lines) == 1
+    assert result.carry_forward_lines[0].name == "Chetna ben"
+    assert result.carry_forward_lines[0].amount == 10000
     assert result.notes == '[["lent to X","500"]]'
     session.close()
 
 
 def test_carry_in_skips_a_missing_day(tmp_path):
-    # they skip a Sunday: the 21st must still inherit from the 19th
     Session = _carry_session(tmp_path, "gap.db")
     session = Session()
-    session.add(_day(date(2026, 7, 19), carry=[(CARRY_FORWARD_NAME, 10000)], notes="older"))
+    session.add(_day(date(2026, 7, 19), carry=[("Chetna ben", 10000, True)], notes="older"))
     session.commit()
 
     result = get_carry_in(before=date(2026, 7, 21), db=session)
     assert result.source_date == date(2026, 7, 19)
-    assert result.carry_forward_amount == 10000
+    assert len(result.carry_forward_lines) == 1
+    assert result.carry_forward_lines[0].amount == 10000
     assert result.notes == "older"
     session.close()
 
 
-def test_carry_in_matches_name_case_and_space_insensitively(tmp_path):
-    Session = _carry_session(tmp_path, "loose.db")
+def test_carry_in_only_inherits_checked_rows(tmp_path):
+    Session = _carry_session(tmp_path, "checked.db")
     session = Session()
-    session.add(_day(date(2026, 7, 19), carry=[("  chetna BEN ", 7500)]))
+    session.add(_day(date(2026, 7, 19), carry=[("A", 100, True), ("B", 200, False), ("C", 300, True)]))
     session.commit()
 
-    assert get_carry_in(before=date(2026, 7, 20), db=session).carry_forward_amount == 7500
+    result = get_carry_in(before=date(2026, 7, 20), db=session)
+    names = [(l.name, l.amount) for l in result.carry_forward_lines]
+    assert names == [("A", 100), ("C", 300)]
     session.close()
 
 
 def test_carry_in_with_no_earlier_day_is_empty(tmp_path):
     Session = _carry_session(tmp_path, "empty.db")
     session = Session()
-    # a LATER day must not be pulled backwards — carry-forward is one-way
-    session.add(_day(date(2026, 7, 25), carry=[(CARRY_FORWARD_NAME, 9999)], notes="future"))
+    session.add(_day(date(2026, 7, 25), carry=[("Chetna ben", 9999, True)], notes="future"))
     session.commit()
 
     result = get_carry_in(before=date(2026, 7, 20), db=session)
     assert result.source_date is None
-    assert result.carry_forward_amount == 0.0
+    assert result.carry_forward_lines == []
     assert result.notes is None
     session.close()
 
 
-def test_carry_in_row_absent_yields_zero(tmp_path):
+def test_carry_in_no_checked_rows_yields_empty_list(tmp_path):
     Session = _carry_session(tmp_path, "absent.db")
     session = Session()
-    session.add(_day(date(2026, 7, 19), carry=[("Chirag bhai", 4200)], notes="kept"))
+    session.add(_day(date(2026, 7, 19), carry=[("Chirag bhai", 4200, False)], notes="kept"))
     session.commit()
 
     result = get_carry_in(before=date(2026, 7, 20), db=session)
     assert result.source_date == date(2026, 7, 19)
-    assert result.carry_forward_amount == 0.0
-    assert result.notes == "kept"  # notes still carry even when the named row is missing
+    assert result.carry_forward_lines == []
+    assert result.notes == "kept"
     session.close()
 
 
 def test_editing_todays_carry_forward_leaves_yesterday_untouched(tmp_path):
     Session = _carry_session(tmp_path, "isolate.db")
     session = Session()
-    session.add(_day(date(2026, 7, 19), carry=[(CARRY_FORWARD_NAME, 10000)], notes='[["a","1"],["b","2"]]'))
+    session.add(_day(date(2026, 7, 19), carry=[("Chetna ben", 10000, True)], notes='[["a","1"],["b","2"]]'))
     session.commit()
 
-    # a new day inherits, then the worker changes it and deletes a note
     inherited = get_carry_in(before=date(2026, 7, 20), db=session)
-    today = _day(date(2026, 7, 20), carry=[(inherited.carry_forward_name, inherited.carry_forward_amount)], notes=inherited.notes)
+    today = _day(date(2026, 7, 20), carry=[(inherited.carry_forward_lines[0].name, inherited.carry_forward_lines[0].amount, True)], notes=inherited.notes)
     session.add(today)
     session.commit()
     today.carry_forward_lines[0].amount = 7500
@@ -225,7 +226,9 @@ def test_editing_todays_carry_forward_leaves_yesterday_untouched(tmp_path):
     assert yesterday.notes == '[["a","1"],["b","2"]]'
 
     # and the day after inherits the EDITED value, not the original
-    assert get_carry_in(before=date(2026, 7, 21), db=session).carry_forward_amount == 7500
+    result2 = get_carry_in(before=date(2026, 7, 21), db=session)
+    assert len(result2.carry_forward_lines) == 1
+    assert result2.carry_forward_lines[0].amount == 7500
     session.close()
 
 

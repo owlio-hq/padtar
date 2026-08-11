@@ -11,7 +11,7 @@ from app.core.backup import backup_now
 from app.core.logging import logger
 from app.db import get_db
 from app.modules.rojmel import engine, export as export_module
-from app.modules.rojmel.defaults import CARRY_FORWARD_NAME, DEFAULT_PRODUCTS
+from app.modules.rojmel.defaults import DEFAULT_PRODUCTS
 from app.modules.rojmel.models import (
     RojmelCarryForwardLine,
     RojmelDay,
@@ -134,7 +134,7 @@ def _apply_carry_forward(day: RojmelDay, rows_in) -> None:
     for idx, row in enumerate(rows_in or []):
         data = row if isinstance(row, dict) else row.model_dump()
         day.carry_forward_lines.append(
-            RojmelCarryForwardLine(name=data.get("name", ""), amount=data.get("amount", 0.0), sort_order=idx)
+            RojmelCarryForwardLine(name=data.get("name", ""), amount=data.get("amount", 0.0), carry_forward=data.get("carry_forward", False), sort_order=idx)
         )
 
 
@@ -197,6 +197,8 @@ def get_carry_in(before: date_type, db: Session = Depends(get_db)):
     worker does with these values today stays on today's entry. `before` is
     strictly exclusive and we take the newest earlier day, so skipping a Sunday or
     a holiday doesn't break the chain.
+
+    Only rows with carry_forward=True are inherited.
     """
     previous = (
         db.query(RojmelDay)
@@ -205,19 +207,17 @@ def get_carry_in(before: date_type, db: Session = Depends(get_db)):
         .first()
     )
     if previous is None:
-        return CarryInOut(source_date=None, carry_forward_name=CARRY_FORWARD_NAME, carry_forward_amount=0.0, notes=None)
+        return CarryInOut(source_date=None, carry_forward_lines=[], notes=None)
 
-    target = CARRY_FORWARD_NAME.strip().lower()
-    amount = 0.0
-    for line in previous.carry_forward_lines:
-        if line.name.strip().lower() == target:
-            amount = line.amount
-            break
+    inherited = [
+        {"name": line.name, "amount": line.amount}
+        for line in previous.carry_forward_lines
+        if line.carry_forward
+    ]
 
     return CarryInOut(
         source_date=previous.date,
-        carry_forward_name=CARRY_FORWARD_NAME,
-        carry_forward_amount=amount,
+        carry_forward_lines=inherited,
         notes=previous.notes,
     )
 

@@ -38,6 +38,7 @@ _ADDITIVE_COLUMNS = [
     ("shakkarpara_batch_ingredients", "category", "VARCHAR NOT NULL DEFAULT 'Raw Material'"),
     ("rojmel_sales_lines", "opening_pic", "FLOAT NOT NULL DEFAULT 0.0"),
     ("rojmel_sales_lines", "closing_pic", "FLOAT NOT NULL DEFAULT 0.0"),
+    ("rojmel_carry_forward_lines", "carry_forward", "BOOLEAN NOT NULL DEFAULT 0"),
 ]
 
 

@@ -421,6 +421,9 @@ export function BatchFormPage() {
                         onChange={(v) => updateIngredient(idx, { usage: v })}
                         ariaLabel="Vaprash"
                         entryFlow
+                        gridRow={idx}
+                        gridCol={0}
+                        gridTable="shakkarpara"
                       />
                     )}
                   </td>

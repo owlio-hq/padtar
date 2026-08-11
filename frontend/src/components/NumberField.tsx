@@ -4,6 +4,7 @@ interface NumberFieldProps {
   value: number
   onChange: (value: number) => void
   onBlur?: () => void
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
   className?: string
   step?: string
   placeholder?: string
@@ -19,6 +20,12 @@ interface NumberFieldProps {
   entryFlow?: boolean | string
   /** Focus + select on mount (used by popups so the value is typeable at once). */
   autoFocus?: boolean
+  /** Grid row index for 2D arrow-key navigation. */
+  gridRow?: number
+  /** Grid column index for 2D arrow-key navigation. */
+  gridCol?: number
+  /** Scopes grid navigation to inputs in the same table. */
+  gridTable?: string
 }
 
 /**
@@ -33,6 +40,7 @@ export function NumberField({
   value,
   onChange,
   onBlur,
+  onKeyDown,
   className = 'field',
   step = 'any',
   placeholder = '0',
@@ -40,6 +48,9 @@ export function NumberField({
   min,
   entryFlow,
   autoFocus,
+  gridRow,
+  gridCol,
+  gridTable,
 }: NumberFieldProps) {
   const [text, setText] = useState(value === 0 ? '' : String(value))
 
@@ -66,6 +77,9 @@ export function NumberField({
       placeholder={placeholder}
       aria-label={ariaLabel}
       data-entry-flow={entryFlow === undefined || entryFlow === false ? undefined : typeof entryFlow === 'string' ? entryFlow : ''}
+      data-grid-row={gridRow}
+      data-grid-col={gridCol}
+      data-grid-table={gridTable}
       autoFocus={autoFocus}
       value={text}
       onFocus={(e) => e.target.select()}
@@ -77,6 +91,12 @@ export function NumberField({
           onChange(clamped)
         }
         onBlur?.()
+      }}
+      onKeyDown={(e) => {
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && gridRow !== undefined) {
+          e.preventDefault()
+        }
+        onKeyDown?.(e)
       }}
       onChange={(e) => {
         const raw = e.target.value

@@ -37,6 +37,7 @@ class MoneyLineOut(MoneyLineIn):
 class CarryForwardLineIn(BaseModel):
     name: str = ""
     amount: float = 0.0
+    carry_forward: bool = False
 
 
 class CarryForwardLineOut(CarryForwardLineIn):
@@ -44,14 +45,18 @@ class CarryForwardLineOut(CarryForwardLineIn):
     id: int
 
 
+class CarryInLineOut(BaseModel):
+    name: str
+    amount: float
+
+
 class CarryInOut(BaseModel):
-    """What a brand-new day inherits from the most recent earlier day: the one
-    named carry-forward amount, and the whole notes list. Forward-only — reading
-    this never changes the source day."""
+    """What a brand-new day inherits from the most recent earlier day: checked
+    carry-forward rows and the whole notes list. Forward-only — reading this
+    never changes the source day."""
 
     source_date: date | None = None
-    carry_forward_name: str
-    carry_forward_amount: float = 0.0
+    carry_forward_lines: list[CarryInLineOut] = []
     notes: str | None = None
 
 

@@ -1,6 +1,6 @@
 from datetime import date as date_type, datetime
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -84,6 +84,7 @@ class RojmelCarryForwardLine(Base):
     day_id: Mapped[int] = mapped_column(ForeignKey("rojmel_days.id", ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(String, nullable=False, default="")
     amount: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    carry_forward: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     day: Mapped["RojmelDay"] = relationship(back_populates="carry_forward_lines")

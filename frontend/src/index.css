@@ -397,6 +397,14 @@ input[type='number'] {
   color: var(--tint-negative-text);
 }
 
+/* --- dashboard hover rows --- */
+.day-row-hover {
+  transition: background 0.12s;
+}
+.day-row-hover:hover {
+  background: var(--hover);
+}
+
 /* --- entry-table column language ---
    Instead of heavy colored blocks on some columns, each column type has a clear
    SHAPE so the UI reads itself:
