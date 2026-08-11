@@ -32,7 +32,7 @@ ACCESS_URL = f"https://raw.githubusercontent.com/{UPDATE_REPO}/{UPDATE_BRANCH}/a
 REMOTE_VERSION_URL = f"https://raw.githubusercontent.com/{UPDATE_REPO}/{UPDATE_BRANCH}/VERSION"
 UPDATE_ZIP_URL = f"https://codeload.github.com/{UPDATE_REPO}/zip/refs/heads/{UPDATE_BRANCH}"
 # Offline-only fallback: with no internet, the app runs until this date, then locks.
-TRIAL_END = date(2026, 8, 14)
+TRIAL_END = date(2026, 9, 30)
 VERSION_FILE = PROJECT_ROOT / "VERSION"
 
 # --- client bug reports -> GitHub issue (see core/bug_reports.py) ---
