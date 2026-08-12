@@ -17,6 +17,7 @@ backups, logs), the bundled python/ and the launcher are never touched.
 
 import os
 import shutil
+import ssl
 import tempfile
 import threading
 import time
@@ -27,6 +28,21 @@ from pathlib import Path
 
 from app.config import PROJECT_ROOT, REMOTE_VERSION_URL, UPDATE_ZIP_URL, app_version
 from app.core.logging import logger
+
+
+def _ssl_context() -> ssl.SSLContext | None:
+    """Build an SSL context using certifi's CA bundle when available.
+
+    Embedded Python on Win10 ships without root certificates, so plain
+    urllib HTTPS calls fail with CERTIFICATE_VERIFY_FAILED. certifi
+    carries a curated Mozilla CA bundle that fixes this. Returns None
+    (= use the system default) when certifi isn't installed.
+    """
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        return None
 
 # Paths (relative to repo root) that an update is allowed to replace.
 _CODE_PATHS = [("backend/app", "backend/app"), ("frontend/dist", "frontend/dist"), ("VERSION", "VERSION")]
@@ -80,7 +96,7 @@ def fetch_remote_version(timeout: float = 5.0) -> str | None:
     url = f"{REMOTE_VERSION_URL}?t={int(time.time())}"  # cache-buster
     req = urllib.request.Request(url, headers={"Cache-Control": "no-cache", "User-Agent": "Padtar"})
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout, context=_ssl_context()) as resp:
             return resp.read().decode("utf-8").strip()
     except Exception:
         return None
@@ -137,7 +153,7 @@ def apply_update() -> str:
         zip_path = tmp_path / "update.zip"
         try:
             req = urllib.request.Request(UPDATE_ZIP_URL, headers={"User-Agent": "Padtar"})
-            with urllib.request.urlopen(req, timeout=60) as resp, open(zip_path, "wb") as out:
+            with urllib.request.urlopen(req, timeout=60, context=_ssl_context()) as resp, open(zip_path, "wb") as out:
                 shutil.copyfileobj(resp, out)
         except Exception as exc:
             raise Offline("Could not download the update") from exc

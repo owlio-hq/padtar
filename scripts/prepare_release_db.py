@@ -61,13 +61,19 @@ def main() -> None:
     con.execute("UPDATE rojmel_sales_lines SET opening_pic = 0, closing_pic = 0")
     con.execute("UPDATE rojmel_days SET notes = NULL")
 
+    # Ensure carry_forward column exists (additive migration may not have run yet).
+    try:
+        con.execute("ALTER TABLE rojmel_carry_forward_lines ADD COLUMN carry_forward BOOLEAN DEFAULT 1")
+    except sqlite3.OperationalError:
+        pass  # already exists
+
     # Show the carry-forward section as a sample: the two default names, amount 0.
     # (The kept day predates that feature, so it has none — seed them here.)
     day_id = con.execute("SELECT id FROM rojmel_days WHERE date = ?", (KEEP_DAY,)).fetchone()[0]
     con.execute("DELETE FROM rojmel_carry_forward_lines WHERE day_id = ?", (day_id,))
     for i, name in enumerate(("Chirag bhai", "Chetna ben")):
         con.execute(
-            "INSERT INTO rojmel_carry_forward_lines (day_id, name, amount, sort_order) VALUES (?, ?, 0, ?)",
+            "INSERT INTO rojmel_carry_forward_lines (day_id, name, amount, sort_order, carry_forward) VALUES (?, ?, 0, ?, 1)",
             (day_id, name, i),
         )
 

@@ -36,7 +36,8 @@ def fetch_flag(timeout: float = 4.0) -> str:
         url, headers={"Cache-Control": "no-cache", "Pragma": "no-cache", "User-Agent": "Padtar"}
     )
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        from app.core.updater import _ssl_context
+        with urllib.request.urlopen(req, timeout=timeout, context=_ssl_context()) as resp:
             data = json.loads(resp.read().decode("utf-8"))
         return "allowed" if data.get("allowed") is True else "denied"
     except Exception:
