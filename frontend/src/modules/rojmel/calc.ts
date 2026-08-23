@@ -6,7 +6,8 @@ export function computeDay(salesLines: SalesLine[], incomeLines: MoneyLine[], ex
   const lines = salesLines.map((s) => ({
     ...s,
     total: s.rate * s.qty,
-    net_pic: (s.opening_pic || 0) - (s.closing_pic || 0), // NET.PIC = opening − closing (can go negative)
+    closing_pic: s.qty, // CLO.PIC = total sales pieces (auto-derived)
+    net_pic: (s.opening_pic || 0) - (s.qty || 0), // NET.PIC = opening − sales (can go negative)
   }))
   let factorySales = 0
   for (const line of lines) factorySales += line.total

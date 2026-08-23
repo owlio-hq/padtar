@@ -4,7 +4,7 @@ export interface SalesLine {
   rate: number
   qty: number
   opening_pic: number // OPP.PIC — morning count (typed)
-  closing_pic: number // CLO.PIC — evening count (typed)
+  closing_pic: number // CLO.PIC — auto-derived from sales (= qty)
   total?: number
   net_pic?: number // NET.PIC = opening - closing (derived, can be negative)
 }
@@ -53,6 +53,7 @@ export interface CarryIn {
   source_date: string | null
   carry_forward_lines: { name: string; amount: number }[]
   notes: string | null
+  stock_opening: { product: string; opening_pic: number }[]
 }
 
 export interface HistorySnapshot {

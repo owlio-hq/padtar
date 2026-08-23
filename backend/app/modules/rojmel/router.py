@@ -207,7 +207,7 @@ def get_carry_in(before: date_type, db: Session = Depends(get_db)):
         .first()
     )
     if previous is None:
-        return CarryInOut(source_date=None, carry_forward_lines=[], notes=None)
+        return CarryInOut(source_date=None, carry_forward_lines=[], notes=None, stock_opening=[])
 
     inherited = [
         {"name": line.name, "amount": line.amount}
@@ -215,10 +215,16 @@ def get_carry_in(before: date_type, db: Session = Depends(get_db)):
         if line.carry_forward
     ]
 
+    stock_opening = [
+        {"product": s.product, "opening_pic": s.qty}
+        for s in previous.sales_lines
+    ]
+
     return CarryInOut(
         source_date=previous.date,
         carry_forward_lines=inherited,
         notes=previous.notes,
+        stock_opening=stock_opening,
     )
 
 

@@ -7,6 +7,7 @@ exactly (see docs/FILE2-ANALYSIS.md):
     total income      = factory sales + other income lines
     total expense     = sum of expense lines               (Excel: totalkharcho)
     cash on hand      = total income - total expense       (Excel: cash o hand)
+    closing stock      = total sales pieces (auto-derived)    (Excel: CLO.PIC = total sales)
     net stock         = opening pieces - closing pieces     (Excel: NET.PIC, can go negative)
 
 All arithmetic uses native Python floats (IEEE-754 double), same as Excel.
@@ -38,7 +39,7 @@ class ComputedSalesLine:
     qty: float
     total: float
     opening_pic: float  # OPP.PIC — morning count (typed)
-    closing_pic: float  # CLO.PIC — evening count (typed)
+    closing_pic: float  # CLO.PIC — auto-derived from qty (= total sales pieces)
     net_pic: float      # = opening_pic - closing_pic (can go negative)
 
 
@@ -63,8 +64,8 @@ def compute_day(sales_lines: list[SalesLine], income_lines: list[MoneyLine], exp
             qty=s.qty,
             total=sales_line_total(s.rate, s.qty),
             opening_pic=s.opening_pic,
-            closing_pic=s.closing_pic,
-            net_pic=net_pic(s.opening_pic, s.closing_pic),  # NET.PIC = opening − closing
+            closing_pic=s.qty,  # CLO.PIC = total sales pieces (auto-derived)
+            net_pic=net_pic(s.opening_pic, s.qty),  # NET.PIC = opening − sales
         )
         for s in sales_lines
     ]

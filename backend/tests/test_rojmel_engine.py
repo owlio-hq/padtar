@@ -1,8 +1,7 @@
 """Rojmel engine — stock columns and cashbook math.
 
-OPP.PIC (morning) and CLO.PIC (evening) are both typed by the owner;
-NET.PIC = OPP.PIC − CLO.PIC (can go negative). Sales (pieces) drives revenue
-only — it never touches the stock net.
+OPP.PIC (morning) is typed by the owner; CLO.PIC is auto-derived from sales
+(= qty). NET.PIC = OPP.PIC − CLO.PIC (can go negative).
 """
 
 from app.modules.rojmel import engine
@@ -16,24 +15,23 @@ def _sales(*rows):
     ]
 
 
-def test_closing_pic_is_the_typed_value():
+def test_closing_pic_equals_qty():
     result = engine.compute_day(_sales((40, 3, 10, 6)), [], [])
-    assert result.sales_lines[0].closing_pic == 6  # echoed straight back, not derived
+    assert result.sales_lines[0].closing_pic == 3  # CLO.PIC = qty (sales), not the typed 6
 
 
-def test_net_pic_is_opening_minus_closing():
+def test_net_pic_is_opening_minus_sales():
     result = engine.compute_day(_sales((40, 3, 10, 6)), [], [])
-    assert result.sales_lines[0].net_pic == 4  # 10 opening - 6 closing
+    assert result.sales_lines[0].net_pic == 7  # 10 opening - 3 sales
 
 
 def test_net_pic_can_go_negative():
-    # closing counted higher than opening — intentional, flags an unrecorded entry
-    result = engine.compute_day(_sales((40, 3, 6, 10)), [], [])
-    assert result.sales_lines[0].net_pic == -4
+    result = engine.compute_day(_sales((40, 15, 8, 0)), [], [])
+    assert result.sales_lines[0].net_pic == -7  # 8 opening - 15 sales
 
 
-def test_net_pic_zero_when_counts_match():
-    result = engine.compute_day(_sales((40, 3, 6, 6)), [], [])
+def test_net_pic_zero_when_sales_equals_opening():
+    result = engine.compute_day(_sales((40, 6, 6, 0)), [], [])
     assert result.sales_lines[0].net_pic == 0
 
 
@@ -41,16 +39,15 @@ def test_stock_fields_default_to_zero():
     result = engine.compute_day([engine.SalesLine(product="x", rate=10, qty=2)], [], [])
     line = result.sales_lines[0]
     assert line.opening_pic == 0
-    assert line.closing_pic == 0
-    assert line.net_pic == 0
+    assert line.closing_pic == 2  # CLO.PIC = qty
+    assert line.net_pic == -2  # 0 opening - 2 sales
 
 
-def test_sales_qty_does_not_affect_net():
-    # Sales (qty) drives revenue only; net depends solely on opening/closing counts
-    result = engine.compute_day(_sales((40, 99, 10, 6)), [], [])
+def test_net_pic_reflects_sales_qty():
+    result = engine.compute_day(_sales((40, 5, 25, 0)), [], [])
     line = result.sales_lines[0]
-    assert line.total == 40 * 99
-    assert line.net_pic == 4  # unaffected by the 99 sales
+    assert line.closing_pic == 5
+    assert line.net_pic == 20  # 25 opening - 5 sales
 
 
 def test_stock_columns_do_not_affect_money_totals():

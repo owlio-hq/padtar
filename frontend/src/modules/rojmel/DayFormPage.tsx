@@ -266,13 +266,19 @@ export function DayFormPage() {
   })
 
   useEffect(() => {
-    if (!isNew || !carryIn || inheritTouched.current) return
+    if (!isNew || !carryIn || inheritTouched.current || !seeded.current) return
     setCarryForward(
       (carryIn.carry_forward_lines ?? []).map((c) => ({ name: c.name, amount: c.amount, carry_forward: false })),
     )
     setNotes(carryIn.notes ?? '')
+    if (carryIn.stock_opening?.length) {
+      const stockMap = new Map(carryIn.stock_opening.map((s) => [s.product, s.opening_pic]))
+      setSalesLines((prev) =>
+        prev.map((line) => ({ ...line, opening_pic: stockMap.get(line.product) ?? line.opening_pic })),
+      )
+    }
     setInheritSeeded(true)
-  }, [isNew, carryIn])
+  }, [isNew, carryIn, defaultProducts])
 
   useEffect(() => {
     if (!existing) return
@@ -455,7 +461,7 @@ export function DayFormPage() {
   const dirtyKey = JSON.stringify({
     date,
     notes,
-    sales: salesLines.map((s) => [s.product, s.rate, s.qty, s.opening_pic, s.closing_pic]),
+    sales: salesLines.map((s) => [s.product, s.rate, s.qty, s.opening_pic]),
     income: incomeLines.map((m) => [m.description, m.amount, m.note]),
     expense: expenseLines.map((m) => [m.description, m.amount, m.note]),
     carry: carryForward.map((c) => [c.name, c.amount, c.carry_forward]),
@@ -585,7 +591,7 @@ export function DayFormPage() {
             const headCells: Record<string, React.ReactNode> = {
               rate: <th key="rate" className="col-locked-head num-center">{t('rojmel.rate', 'Rate')} (₹)<Lock className="col-lock-head-ico" size={11} /></th>,
               opp: <th key="opp" className="col-locked-head num-right" title="Opening pieces (morning count)">OPP.PIC<Lock className="col-lock-head-ico" size={11} /></th>,
-              clo: <th key="clo" className="col-locked-head num-right" title="Closing pieces (evening count)">CLO.PIC<Lock className="col-lock-head-ico" size={11} /></th>,
+              clo: <th key="clo" className="num-right" title="Closing pieces (= total sales)">CLO.PIC</th>,
               net: <th key="net" className="num-right" title="Net = opening − closing">NET.PIC</th>,
               sales: <th key="sales" className="col-editable-head num-right">{t('rojmel.qty', 'Sales')}</th>,
               net_sales: <th key="net_sales" className="num-right" title="Accumulated sales total">NET.SALES</th>,
@@ -604,15 +610,7 @@ export function DayFormPage() {
                     </button>
                   )}
                 </td>,
-                clo: <td key="clo" className="col-stock">
-                  {stockUnlocked ? (
-                    <NumberField className="field-inline" value={s.closing_pic} onChange={(v) => updateSalesLine(i, { closing_pic: v })} ariaLabel="Closing pieces" entryFlow="clo" gridRow={i} gridCol={gridColMap.clo} gridTable="sales" />
-                  ) : (
-                    <button className="stock-locked" onClick={unlockStock} title="Click to edit closing (password needed)" data-grid-row={i} data-grid-col={gridColMap.clo} data-grid-table="sales" data-grid-locked>
-                      {s.closing_pic || 0}
-                    </button>
-                  )}
-                </td>,
+                clo: <td key="clo" className="col-total">{lines[i]?.closing_pic ?? 0}</td>,
                 net: <td key="net" className="col-total" style={{ color: net < 0 ? 'var(--net-neg)' : 'var(--net-pos)', fontWeight: 700 }}>{net}</td>,
                 sales: <td key="sales" className="col-editable">
                   <NumberField className="field-inline num-right" value={tallyInputs[i] ?? 0} onChange={(v) => updateTally(i, v)} onKeyDown={(e) => handleTallyEnter(i, e)} ariaLabel="Sales pieces" entryFlow gridRow={i} gridCol={gridColMap.sales} gridTable="sales" />
