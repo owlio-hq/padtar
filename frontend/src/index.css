@@ -165,6 +165,11 @@ body {
 .btn-primary:hover:not(:disabled) {
   background-color: var(--accent-hover);
 }
+.btn-success {
+  background-color: var(--tint-total-bg);
+  color: var(--tint-total-text);
+  cursor: default;
+}
 .btn-outline {
   background-color: transparent;
   color: var(--text-secondary);

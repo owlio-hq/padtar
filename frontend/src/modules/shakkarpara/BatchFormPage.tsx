@@ -270,9 +270,9 @@ export function BatchFormPage() {
         backLabel={t('shakkarpara.title', 'Shakkarpara')}
         actions={
           <>
-            <button className="btn btn-primary" onClick={handleSave} disabled={saveMutation.isPending} title="Save (Ctrl+S)">
+            <button className={`btn ${guard.isDirty || isNew ? 'btn-primary' : 'btn-success'}`} onClick={handleSave} disabled={saveMutation.isPending || (!guard.isDirty && !isNew)} title="Save (Ctrl+S)">
               <Save size={14} />
-              {saveMutation.isPending ? 'Saving…' : 'Save'}
+              {saveMutation.isPending ? 'Saving…' : guard.isDirty || isNew ? 'Save' : 'Saved'}
             </button>
             {!isNew && (
             <>
@@ -493,8 +493,8 @@ export function BatchFormPage() {
       <NotesGrid value={notes || null} onChange={(v) => setNotes(v ?? '')} />
 
       <div className="mt-5 flex justify-end">
-        <button onClick={handleSave} disabled={saveMutation.isPending} className="btn btn-primary">
-          {saveMutation.isPending ? 'Saving…' : 'Save batch'}
+        <button onClick={handleSave} disabled={saveMutation.isPending || (!guard.isDirty && !isNew)} className={`btn ${guard.isDirty || isNew ? 'btn-primary' : 'btn-success'}`}>
+          {saveMutation.isPending ? 'Saving…' : guard.isDirty || isNew ? 'Save batch' : 'Saved'}
         </button>
       </div>
 

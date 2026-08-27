@@ -473,7 +473,7 @@ export function DayFormPage() {
     payload: dirtyKey,
     // wait for the inherited carry-forward/notes too, or the baseline snapshots
     // before they land and a freshly opened day reads as unsaved
-    ready: isNew ? salesLines.length > 0 && inheritSeeded : !!existing,
+    ready: isNew ? salesLines.length > 0 && inheritSeeded : !!existing && salesLines.length > 0,
     save: async () => {
       await saveMutation.mutateAsync(buildPayload())
     },
@@ -492,9 +492,9 @@ export function DayFormPage() {
           backLabel={t('rojmel.title', 'Rojmed')}
           actions={
             <>
-              <button className="btn btn-primary" onClick={handleSave} disabled={saveMutation.isPending} title="Save (Ctrl+S)">
+              <button className={`btn ${guard.isDirty || isNew ? 'btn-primary' : 'btn-success'}`} onClick={handleSave} disabled={saveMutation.isPending || (!guard.isDirty && !isNew)} title="Save (Ctrl+S)">
                 <Save size={14} />
-                {saveMutation.isPending ? 'Saving…' : 'Save'}
+                {saveMutation.isPending ? 'Saving…' : guard.isDirty || isNew ? 'Save' : 'Saved'}
               </button>
               {!isNew && (
                 <>
