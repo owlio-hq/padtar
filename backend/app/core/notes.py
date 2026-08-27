@@ -26,4 +26,25 @@ def parse_notes(notes: str | None) -> list[tuple[str, str]]:
             return rows
     except (ValueError, TypeError):
         pass
-    return [(notes, "")]
+    # Legacy plain text — split on newlines and semicolons so each chunk
+    # becomes its own row instead of one giant cell in exports.
+    rows: list[tuple[str, str]] = []
+    for line in notes.splitlines():
+        for chunk in line.split(";"):
+            chunk = chunk.strip()
+            if not chunk:
+                continue
+            # Try to extract "label: amount" pairs (e.g. "lift: 3000")
+            if ":" in chunk:
+                parts = chunk.rsplit(":", 1)
+                label, maybe_amt = parts[0].strip(), parts[1].strip()
+                # If the right side looks numeric, treat it as the amount
+                cleaned = maybe_amt.replace(",", "").replace(" ", "")
+                try:
+                    float(cleaned)
+                    rows.append((label, maybe_amt))
+                    continue
+                except ValueError:
+                    pass
+            rows.append((chunk, ""))
+    return rows if rows else [(notes, "")]

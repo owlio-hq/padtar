@@ -453,7 +453,9 @@ export function DayFormPage() {
 
   async function exportFile(kind: 'excel' | 'pdf') {
     const ext = kind === 'excel' ? 'xlsx' : 'pdf'
-    await saveExport(`/api/rojmel/days/${dayId}/export/${kind}`, `rojmel_${date}_${dayId}.${ext}`)
+    const d = new Date(date + 'T00:00:00')
+    const fmtDate = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-')
+    await saveExport(`/api/rojmel/days/${dayId}/export/${kind}`, `Rojmed_${fmtDate}.${ext}`)
   }
 
   // What the worker actually typed — server-added fields (id, total) are left
@@ -651,14 +653,21 @@ export function DayFormPage() {
                     </tr>
                   )
                 })}
-                {salesLines.length > 0 && (
-                  <tr className="subtotal-row">
-                    <td colSpan={salesColOrder.length + 1}>{t('rojmel.factory_sales', 'Factory Sales')}</td>
-                    <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                      ₹{factorySales.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                )}
+                {salesLines.length > 0 && (() => {
+                  const totalIdx = salesColOrder.indexOf('total')
+                  const labelSpan = totalIdx >= 0 ? totalIdx + 1 : salesColOrder.length + 1
+                  const trailingCols = totalIdx >= 0 ? salesColOrder.length - totalIdx - 1 : 0
+                  return (
+                    <tr className="subtotal-row">
+                      <td colSpan={labelSpan}>{t('rojmel.factory_sales', 'Factory Sales')}</td>
+                      <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                        ₹{factorySales.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      {trailingCols > 0 && <td colSpan={trailingCols} />}
+                      <td />
+                    </tr>
+                  )
+                })()}
               </tbody>
             </table>
             )

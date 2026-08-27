@@ -52,7 +52,7 @@ function MoneyBlock({ lines }: { lines: MoneyLine[] }) {
   return (
     <table className="ps-table">
       <colgroup>
-        <col style={{ width: '10ch' }} />
+        <col style={{ width: '14ch' }} />
         <col />
         <col style={{ width: '9ch' }} />
       </colgroup>
@@ -183,7 +183,7 @@ export function RojmelPrintSheet({
           {carryForward.length > 0 ? (
             <table className="ps-table">
               <colgroup>
-                <col style={{ width: '10ch' }} />
+                <col style={{ width: '14ch' }} />
                 <col />
               </colgroup>
               <thead>
@@ -215,7 +215,7 @@ export function RojmelPrintSheet({
           {noteRows.length > 0 ? (
             <table className="ps-table">
               <colgroup>
-                <col style={{ width: '10ch' }} />
+                <col style={{ width: '14ch' }} />
                 <col />
               </colgroup>
               <thead>

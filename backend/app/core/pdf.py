@@ -64,7 +64,7 @@ def notes_section(entries: list[tuple[str, list[tuple[str, str]]]]) -> list:
                 Paragraph(detail, BODY_STYLE),  # amount
                 Paragraph(note, BODY_STYLE),
             ])
-    table = Table(rows, colWidths=[3 * cm, 3.4 * cm, 11.4 * cm])
+    table = Table(rows, colWidths=[3 * cm, 3.4 * cm, 12 * cm])
     table.setStyle(
         TableStyle(
             [

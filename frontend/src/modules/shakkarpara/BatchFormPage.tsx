@@ -226,7 +226,9 @@ export function BatchFormPage() {
 
   async function exportFile(kind: 'excel' | 'pdf') {
     const ext = kind === 'excel' ? 'xlsx' : 'pdf'
-    await saveExport(`/api/shakkarpara/batches/${batchId}/export/${kind}`, `shakkarpara_${date}_${batchId}.${ext}`)
+    const d = new Date(date + 'T00:00:00')
+    const fmtDate = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-')
+    await saveExport(`/api/shakkarpara/batches/${batchId}/export/${kind}`, `Shakkarpara_Batch_${batchId}_${fmtDate}.${ext}`)
   }
 
   // What the worker actually typed — server-added fields (id, total) are left

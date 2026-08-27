@@ -245,7 +245,7 @@ def export_day_excel(day_id: int, db: Session = Depends(get_db)):
     if day is None:
         raise HTTPException(status_code=404, detail="Day not found")
     content = export_module.build_days_excel([_serialize(day)])
-    filename = f"rojmel_{day.date.isoformat()}_{day.id}.xlsx"
+    filename = f"Rojmed_{day.date.strftime('%d-%b-%Y')}.xlsx"
     return Response(
         content=content,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -259,7 +259,7 @@ def export_day_pdf(day_id: int, db: Session = Depends(get_db)):
     if day is None:
         raise HTTPException(status_code=404, detail="Day not found")
     content = export_module.build_days_pdf([_serialize(day)])
-    filename = f"rojmel_{day.date.isoformat()}_{day.id}.pdf"
+    filename = f"Rojmed_{day.date.strftime('%d-%b-%Y')}.pdf"
     return Response(
         content=content,
         media_type="application/pdf",

@@ -51,7 +51,7 @@ def _money_table(title: str, lines, head_fill: str, head_text: str) -> Table:
         rows.append([f"{m.amount:.2f}", m.description, m.note])
     if len(rows) == 1:
         rows.append(["", "—", ""])
-    tbl = Table(rows, colWidths=[2.0 * cm, 4.2 * cm, 2.6 * cm])
+    tbl = Table(rows, colWidths=[2.0 * cm, 4.6 * cm, 2.6 * cm])
     tbl.setStyle(
         TableStyle(
             [
@@ -74,7 +74,8 @@ def build_days_excel(days: list[DayOut]) -> bytes:
     ws = wb.active
     ws.title = "Days"
     # widths: Product | Rate | OPP.PIC | CLO.PIC | NET.PIC | Sales | Total
-    for idx, width in enumerate([22, 12, 11, 11, 11, 10, 14], start=1):
+    # These also serve the side-by-side money layout (A-C Income, E-G Kharcho).
+    for idx, width in enumerate([22, 12, 14, 11, 18, 12, 14], start=1):
         ws.column_dimensions[get_column_letter(idx)].width = width
 
     row = 1
@@ -115,27 +116,78 @@ def build_days_excel(days: list[DayOut]) -> bytes:
         c.fill, c.font = _fill(SUBTOTAL_FILL), Font(color=SUBTOTAL_TEXT, bold=True)
         row += 2
 
-        # Amount | Description | Note — same order as the screen, amounts right.
-        for label, money_lines in (("Income", day.income_lines), ("Kharcho", day.expense_lines)):
-            if not money_lines:
-                continue
-            ws.cell(row=row, column=1, value=label).font = Font(bold=True, italic=True)
-            row += 1
-            for col, header in enumerate(["Amount (₹)", "Description", "Note"], start=1):
-                cell = ws.cell(row=row, column=col, value=header)
+        # Income (cols A-C) and Kharcho (cols E-G) side-by-side.
+        # Column order: Description | Note | Amount (₹) — amount on the right.
+        # Column D is a narrow separator with a thick red right border.
+        _red_side = Side(style="medium", color=NEGATIVE_FILL)
+        income_lines = day.income_lines or []
+        expense_lines = day.expense_lines or []
+
+        # Headers
+        for label, start_col, head_fill, head_text in (
+            ("Income", 1, SUBTOTAL_FILL, SUBTOTAL_TEXT),
+            ("Kharcho", 5, NEGATIVE_FILL, NEGATIVE_TEXT),
+        ):
+            ws.cell(row=row, column=start_col, value=label).font = Font(bold=True, italic=True)
+        row += 1
+        for start_col in (1, 5):
+            for offset, header in enumerate(["Description", "Note", "Amount (₹)"]):
+                cell = ws.cell(row=row, column=start_col + offset, value=header)
                 cell.fill, cell.font = _fill(HEADER_FILL), Font(bold=True)
-            row += 1
-            for m in money_lines:
-                amt = ws.cell(row=row, column=1, value=m.amount)
+                if offset == 2:
+                    cell.alignment = Alignment(horizontal="right")
+        money_header_row = row
+        row += 1
+
+        max_lines = max(len(income_lines), len(expense_lines), 1)
+        money_start_row = row
+        for i in range(max_lines):
+            if i < len(income_lines):
+                m = income_lines[i]
+                ws.cell(row=row, column=1, value=m.description)
+                ws.cell(row=row, column=2, value=m.note)
+                amt = ws.cell(row=row, column=3, value=m.amount)
                 amt.alignment = Alignment(horizontal="right")
-                ws.cell(row=row, column=2, value=m.description)
-                ws.cell(row=row, column=3, value=m.note)
-                row += 1
+            if i < len(expense_lines):
+                m = expense_lines[i]
+                ws.cell(row=row, column=5, value=m.description)
+                ws.cell(row=row, column=6, value=m.note)
+                amt = ws.cell(row=row, column=7, value=m.amount)
+                amt.alignment = Alignment(horizontal="right")
             row += 1
 
-        ws.cell(row=row, column=1, value="Cash on Hand").font = Font(bold=True)
-        c = ws.cell(row=row, column=2, value=round(day.cash_on_hand, 2))
-        c.fill, c.font = _fill(PADTAR_FILL), Font(color=PADTAR_TEXT, bold=True)
+        # Red separator border on column D (between Income and Kharcho)
+        for r in range(money_header_row - 1, row):
+            sep = ws.cell(row=r, column=4)
+            sep.border = Border(left=_red_side, right=_red_side)
+        ws.column_dimensions["D"].width = 1.5
+
+        # Light borders on money cells
+        for r in range(money_header_row, row):
+            for c in (1, 2, 3, 5, 6, 7):
+                cell = ws.cell(row=r, column=c)
+                if not cell.border or cell.border == Border():
+                    cell.border = THIN_BORDER
+                else:
+                    cell.border = THIN_BORDER
+
+        row += 1
+
+        # Summary row: Income | Kharcho | Cash on Hand — all three together
+        for col, label, val, fill_c, text_c in (
+            (1, "Income:", round(day.total_income, 2), SUBTOTAL_FILL, SUBTOTAL_TEXT),
+            (3, "Kharcho:", round(day.total_expense, 2), NEGATIVE_FILL, NEGATIVE_TEXT),
+            (5, "Cash on Hand:", round(day.cash_on_hand, 2), PADTAR_FILL, PADTAR_TEXT),
+        ):
+            lbl = ws.cell(row=row, column=col, value=label)
+            lbl.font = Font(bold=True, color=text_c)
+            lbl.fill = _fill(fill_c)
+            lbl.border = THIN_BORDER
+            v = ws.cell(row=row, column=col + 1, value=val)
+            v.font = Font(bold=True, color=text_c)
+            v.fill = _fill(fill_c)
+            v.alignment = Alignment(horizontal="right")
+            v.border = THIN_BORDER
         row += 2
 
         if day.carry_forward_lines:
@@ -156,21 +208,20 @@ def build_days_excel(days: list[DayOut]) -> bytes:
             c.fill, c.font = _fill(SUBTOTAL_FILL), Font(color=SUBTOTAL_TEXT, bold=True)
             row += 2
 
-    # Date | Amount | Note — the stored pair is [note, detail] but detail IS the
-    # amount, and the client reads the amount first.
+    # Date | Note | Amount (₹) — note on the left, amount on the right.
     notes_ws = wb.create_sheet("Notes")
     notes_ws.column_dimensions["A"].width = 16
-    notes_ws.column_dimensions["B"].width = 16
-    notes_ws.column_dimensions["C"].width = 60
-    notes_ws.append(["Date", "Amount", "Note"])
+    notes_ws.column_dimensions["B"].width = 60
+    notes_ws.column_dimensions["C"].width = 16
+    notes_ws.append(["Date", "Note", "Amount (₹)"])
     for cell in notes_ws[1]:
         cell.font, cell.fill = Font(bold=True), _fill(HEADER_FILL)
     for day in sorted(days, key=lambda d: d.date):
         for i, (note, detail) in enumerate(parse_notes(day.notes)):
-            notes_ws.append([day.date.strftime("%d %b %Y") if i == 0 else "", detail, note])
+            notes_ws.append([day.date.strftime("%d %b %Y") if i == 0 else "", note, detail])
             for cell in notes_ws[notes_ws.max_row]:
                 cell.alignment = Alignment(wrap_text=True, vertical="top")
-            notes_ws.cell(row=notes_ws.max_row, column=2).alignment = Alignment(horizontal="right", vertical="top")
+            notes_ws.cell(row=notes_ws.max_row, column=3).alignment = Alignment(horizontal="right", vertical="top")
 
     fit_to_one_page(ws)
     fit_to_one_page(notes_ws)
@@ -196,7 +247,7 @@ def build_days_pdf(days: list[DayOut]) -> bytes:
             rows.append([s.product, f"{s.rate:g}", f"{s.opening_pic:g}", f"{s.closing_pic:g}", f"{s.net_pic:g}", f"{s.qty:g}", f"{s.total:.2f}"])
         rows.append(["Factory Sales", "", "", "", "", "", f"{day.factory_sales:.2f}"])
         n = len(day.sales_lines)
-        table = Table(rows, colWidths=[4.4 * cm, 2 * cm, 1.9 * cm, 1.9 * cm, 1.9 * cm, 1.7 * cm, 2.6 * cm])
+        table = Table(rows, colWidths=[5.2 * cm, 2.2 * cm, 2 * cm, 2 * cm, 2 * cm, 1.8 * cm, 3.2 * cm])
         style = [
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(f"#{HEADER_FILL}")),
             ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
@@ -228,14 +279,14 @@ def build_days_pdf(days: list[DayOut]) -> bytes:
         # header) on the left, Kharcho (red header) on the right.
         income_tbl = _money_table("Income", day.income_lines, SUBTOTAL_FILL, SUBTOTAL_TEXT)
         expense_tbl = _money_table("Kharcho", day.expense_lines, NEGATIVE_FILL, NEGATIVE_TEXT)
-        pair = Table([[income_tbl, expense_tbl]], colWidths=[9 * cm, 9 * cm])
+        pair = Table([[income_tbl, expense_tbl]], colWidths=[9.2 * cm, 9.2 * cm])
         pair.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (0, 0), 6)]))
         story.append(pair)
         story.append(spacer(0.2))
 
         summary = Table(
             [["Total Income", f"{day.total_income:.2f}", "Total Expense", f"{day.total_expense:.2f}", "Cash on Hand", f"{day.cash_on_hand:.2f}"]],
-            colWidths=[3 * cm, 2.5 * cm, 3 * cm, 2.5 * cm, 3 * cm, 2.5 * cm],
+            colWidths=[3.2 * cm, 2.7 * cm, 3.2 * cm, 2.7 * cm, 3.2 * cm, 3.4 * cm],
         )
         summary.setStyle(
             TableStyle(
@@ -264,7 +315,7 @@ def build_days_pdf(days: list[DayOut]) -> bytes:
             # Informational total — deliberately NOT part of Cash on Hand.
             cf_rows.append(["Total", f"{sum(cf.amount for cf in day.carry_forward_lines):.2f}"])
             cf_last = len(cf_rows) - 1
-            cf_table = Table(cf_rows, colWidths=[8 * cm, 4 * cm])
+            cf_table = Table(cf_rows, colWidths=[8 * cm, 4 * cm], hAlign='LEFT')
             cf_table.setStyle(
                 TableStyle(
                     [

@@ -256,7 +256,7 @@ def export_batch_excel(batch_id: int, db: Session = Depends(get_db)):
     if batch is None:
         raise HTTPException(status_code=404, detail="Batch not found")
     content = export_module.build_excel([_serialize(batch)])
-    filename = f"shakkarpara_{batch.date.isoformat()}_{batch.id}.xlsx"
+    filename = f"Shakkarpara_Batch_{batch.id}_{batch.date.strftime('%d-%b-%Y')}.xlsx"
     return Response(
         content=content,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -270,7 +270,7 @@ def export_batch_pdf(batch_id: int, db: Session = Depends(get_db)):
     if batch is None:
         raise HTTPException(status_code=404, detail="Batch not found")
     content = export_module.build_pdf([_serialize(batch)])
-    filename = f"shakkarpara_{batch.date.isoformat()}_{batch.id}.pdf"
+    filename = f"Shakkarpara_Batch_{batch.id}_{batch.date.strftime('%d-%b-%Y')}.pdf"
     return Response(
         content=content,
         media_type="application/pdf",
