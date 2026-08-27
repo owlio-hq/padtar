@@ -215,9 +215,12 @@ def get_carry_in(before: date_type, db: Session = Depends(get_db)):
         if line.carry_forward
     ]
 
+    prev_result = engine.compute_day(
+        _to_engine_sales(previous), _to_engine_money(previous.income_lines), _to_engine_money(previous.expense_lines),
+    )
     stock_opening = [
-        {"product": s.product, "opening_pic": s.qty}
-        for s in previous.sales_lines
+        {"product": c.product, "opening_pic": c.net_pic}
+        for c in prev_result.sales_lines
     ]
 
     return CarryInOut(
