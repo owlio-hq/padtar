@@ -118,16 +118,13 @@ def build_days_excel(days: list[DayOut]) -> bytes:
 
         # Income (cols A-C) and Kharcho (cols E-G) side-by-side.
         # Column order: Description | Note | Amount (₹) — amount on the right.
-        # Column D is a narrow separator with a thick red right border.
+        # Thick red right-border on col C separates the two sides visually.
         _red_side = Side(style="medium", color=NEGATIVE_FILL)
         income_lines = day.income_lines or []
         expense_lines = day.expense_lines or []
 
         # Headers
-        for label, start_col, head_fill, head_text in (
-            ("Income", 1, SUBTOTAL_FILL, SUBTOTAL_TEXT),
-            ("Kharcho", 5, NEGATIVE_FILL, NEGATIVE_TEXT),
-        ):
+        for label, start_col in (("Income", 1), ("Kharcho", 5)):
             ws.cell(row=row, column=start_col, value=label).font = Font(bold=True, italic=True)
         row += 1
         for start_col in (1, 5):
@@ -140,7 +137,6 @@ def build_days_excel(days: list[DayOut]) -> bytes:
         row += 1
 
         max_lines = max(len(income_lines), len(expense_lines), 1)
-        money_start_row = row
         for i in range(max_lines):
             if i < len(income_lines):
                 m = income_lines[i]
@@ -156,39 +152,45 @@ def build_days_excel(days: list[DayOut]) -> bytes:
                 amt.alignment = Alignment(horizontal="right")
             row += 1
 
-        # Red separator border on column D (between Income and Kharcho)
+        # Thick red vertical border on the right edge of column C (Income→Kharcho separator)
         for r in range(money_header_row - 1, row):
-            sep = ws.cell(row=r, column=4)
-            sep.border = Border(left=_red_side, right=_red_side)
-        ws.column_dimensions["D"].width = 1.5
+            c3 = ws.cell(row=r, column=3)
+            existing = c3.border
+            c3.border = Border(
+                left=existing.left, top=existing.top, bottom=existing.bottom,
+                right=_red_side,
+            )
 
         # Light borders on money cells
         for r in range(money_header_row, row):
-            for c in (1, 2, 3, 5, 6, 7):
-                cell = ws.cell(row=r, column=c)
-                if not cell.border or cell.border == Border():
-                    cell.border = THIN_BORDER
-                else:
-                    cell.border = THIN_BORDER
+            for c in (1, 2, 5, 6, 7):
+                ws.cell(row=r, column=c).border = THIN_BORDER
+            # Col 3: keep the red right border, add thin on other sides
+            c3 = ws.cell(row=r, column=3)
+            c3.border = Border(
+                left=_thin_side, top=_thin_side, bottom=_thin_side,
+                right=_red_side,
+            )
 
         row += 1
 
-        # Summary row: Income | Kharcho | Cash on Hand — all three together
-        for col, label, val, fill_c, text_c in (
-            (1, "Income:", round(day.total_income, 2), SUBTOTAL_FILL, SUBTOTAL_TEXT),
-            (3, "Kharcho:", round(day.total_expense, 2), NEGATIVE_FILL, NEGATIVE_TEXT),
-            (5, "Cash on Hand:", round(day.cash_on_hand, 2), PADTAR_FILL, PADTAR_TEXT),
+        # Summary — stacked vertically: Income, Kharcho, Cash on Hand
+        for label, val, fill_c, text_c in (
+            ("Income:", round(day.total_income, 2), SUBTOTAL_FILL, SUBTOTAL_TEXT),
+            ("Kharcho:", round(day.total_expense, 2), NEGATIVE_FILL, NEGATIVE_TEXT),
+            ("Cash on Hand:", round(day.cash_on_hand, 2), PADTAR_FILL, PADTAR_TEXT),
         ):
-            lbl = ws.cell(row=row, column=col, value=label)
+            lbl = ws.cell(row=row, column=1, value=label)
             lbl.font = Font(bold=True, color=text_c)
             lbl.fill = _fill(fill_c)
             lbl.border = THIN_BORDER
-            v = ws.cell(row=row, column=col + 1, value=val)
+            v = ws.cell(row=row, column=2, value=val)
             v.font = Font(bold=True, color=text_c)
             v.fill = _fill(fill_c)
             v.alignment = Alignment(horizontal="right")
             v.border = THIN_BORDER
-        row += 2
+            row += 1
+        row += 1
 
         if day.carry_forward_lines:
             ws.cell(row=row, column=1, value="Carry Forward").font = Font(bold=True, italic=True)
@@ -208,23 +210,25 @@ def build_days_excel(days: list[DayOut]) -> bytes:
             c.fill, c.font = _fill(SUBTOTAL_FILL), Font(color=SUBTOTAL_TEXT, bold=True)
             row += 2
 
-    # Date | Note | Amount (₹) — note on the left, amount on the right.
-    notes_ws = wb.create_sheet("Notes")
-    notes_ws.column_dimensions["A"].width = 16
-    notes_ws.column_dimensions["B"].width = 60
-    notes_ws.column_dimensions["C"].width = 16
-    notes_ws.append(["Date", "Note", "Amount (₹)"])
-    for cell in notes_ws[1]:
-        cell.font, cell.fill = Font(bold=True), _fill(HEADER_FILL)
-    for day in sorted(days, key=lambda d: d.date):
-        for i, (note, detail) in enumerate(parse_notes(day.notes)):
-            notes_ws.append([day.date.strftime("%d %b %Y") if i == 0 else "", note, detail])
-            for cell in notes_ws[notes_ws.max_row]:
-                cell.alignment = Alignment(wrap_text=True, vertical="top")
-            notes_ws.cell(row=notes_ws.max_row, column=3).alignment = Alignment(horizontal="right", vertical="top")
+    # Notes section at bottom of same sheet (not a separate sheet)
+    note_entries = [(d, parse_notes(d.notes)) for d in sorted(days, key=lambda d: d.date) if d.notes]
+    if note_entries:
+        ws.cell(row=row, column=1, value="Notes").font = Font(bold=True, italic=True, size=12)
+        row += 1
+        for col, header in enumerate(["Date", "Note", "Amount (₹)"], start=1):
+            cell = ws.cell(row=row, column=col, value=header)
+            cell.fill, cell.font, cell.border = _fill(HEADER_FILL), Font(bold=True), THIN_BORDER
+        ws.cell(row=row, column=3).alignment = Alignment(horizontal="right")
+        row += 1
+        for day, parsed in note_entries:
+            for i, (note, detail) in enumerate(parsed):
+                ws.cell(row=row, column=1, value=day.date.strftime("%d %b %Y") if i == 0 else "").border = THIN_BORDER
+                ws.cell(row=row, column=2, value=note).border = THIN_BORDER
+                c = ws.cell(row=row, column=3, value=detail)
+                c.border, c.alignment = THIN_BORDER, Alignment(horizontal="right")
+                row += 1
 
     fit_to_one_page(ws)
-    fit_to_one_page(notes_ws)
 
     buffer = BytesIO()
     wb.save(buffer)
