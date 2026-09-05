@@ -167,36 +167,20 @@ def build_days_excel(days: list[DayOut]) -> bytes:
                 amt.alignment = Alignment(horizontal="right")
             row += 1
 
-        # Thick red vertical border on the right edge of column C (Income→Kharcho separator)
-        for r in range(money_header_row - 1, row):
-            c3 = ws.cell(row=r, column=3)
-            existing = c3.border
-            c3.border = Border(
-                left=existing.left, top=existing.top, bottom=existing.bottom,
-                right=_red_side,
-            )
-
         # Light borders on money cells
         for r in range(money_header_row, row):
-            for c in (1, 2, 5, 6, 7):
+            for c in (1, 2, 3, 5, 6, 7):
                 ws.cell(row=r, column=c).border = THIN_BORDER
-            # Col 3: keep the red right border, add thin on other sides
-            c3 = ws.cell(row=r, column=3)
-            c3.border = Border(
-                left=_thin_side, top=_thin_side, bottom=_thin_side,
-                right=_red_side,
-            )
 
         # Bold outlines on Income (A-C) and Kharcho (E-G)
         _bold_outline(ws, money_header_row, row - 1, 1, 3)
         _bold_outline(ws, money_header_row, row - 1, 5, 7)
-        # Red right border on col C — actual red, not pale pink NEGATIVE_FILL
-        _red_bold = Side(style="medium", color="CC0000")
+        # Red right border on col C — applied LAST so it's not overwritten
         for r in range(money_header_row, row):
             c3 = ws.cell(row=r, column=3)
             c3.border = Border(
                 left=c3.border.left, top=c3.border.top, bottom=c3.border.bottom,
-                right=_red_bold,
+                right=_red_side,
             )
 
         row += 1
