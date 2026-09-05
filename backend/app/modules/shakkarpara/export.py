@@ -20,6 +20,7 @@ from app.core.export_style import (
     BORDER_COLOR,
     fit_to_one_page,
     HEADER_FILL,
+    NOTES_FILL,
     OIL_SIT_FILL,
     OIL_SIT_TEXT,
     PADTAR_FILL,
@@ -39,6 +40,19 @@ from app.modules.shakkarpara.schemas import BatchOut
 
 _thin_side = Side(style="thin", color=BORDER_COLOR)
 THIN_BORDER = Border(left=_thin_side, right=_thin_side, top=_thin_side, bottom=_thin_side)
+_bold_side = Side(style="medium", color="000000")
+
+
+def _bold_outline(ws, top_row: int, bottom_row: int, left_col: int, right_col: int) -> None:
+    for r in range(top_row, bottom_row + 1):
+        for c in range(left_col, right_col + 1):
+            cell = ws.cell(row=r, column=c)
+            existing = cell.border
+            new_left = _bold_side if c == left_col else existing.left
+            new_right = _bold_side if c == right_col else existing.right
+            new_top = _bold_side if r == top_row else existing.top
+            new_bottom = _bold_side if r == bottom_row else existing.bottom
+            cell.border = Border(left=new_left, right=new_right, top=new_top, bottom=new_bottom)
 
 
 def _fill(hex_color: str) -> PatternFill:
@@ -56,6 +70,7 @@ def build_excel(batches: list[BatchOut]) -> bytes:
 
     row = 1
     for batch in sorted(batches, key=lambda b: b.date):
+        batch_start = row
         ws.cell(row=row, column=1, value="Date").font = Font(bold=True)
         ws.cell(row=row, column=2, value=batch.date.strftime("%d %b %Y")).font = Font(bold=True)
         row += 1
@@ -84,8 +99,10 @@ def build_excel(batches: list[BatchOut]) -> bytes:
             total_cell.alignment = right
             row += 1
 
-        ws.cell(row=row, column=1, value="Production").font = Font(italic=True)
-        ws.cell(row=row, column=2, value=f"{batch.production_qty} {batch.production_unit}")
+        prod_label = ws.cell(row=row, column=1, value="Production")
+        prod_label.fill, prod_label.font = _fill(USAGE_FILL), Font(color=USAGE_TEXT, bold=True)
+        prod_val = ws.cell(row=row, column=2, value=f"{batch.production_qty} {batch.production_unit}")
+        prod_val.fill, prod_val.font = _fill(USAGE_FILL), Font(color=USAGE_TEXT, bold=True)
         row += 1
 
         # Batch Total row — stronger green fill to stand out from ingredient totals column.
@@ -96,8 +113,10 @@ def build_excel(batches: list[BatchOut]) -> bytes:
         row += 1
 
         if batch.extra_per_unit:
-            ws.cell(row=row, column=1, value="Office Expenses").font = Font(italic=True)
-            ws.cell(row=row, column=2, value=round(batch.extra_per_unit, 2))
+            oe_label = ws.cell(row=row, column=1, value="Office Expenses")
+            oe_label.fill, oe_label.font = _fill(NOTES_FILL), Font(italic=True, bold=True)
+            oe_val = ws.cell(row=row, column=2, value=round(batch.extra_per_unit, 2))
+            oe_val.fill = _fill(NOTES_FILL)
             row += 1
 
         # Padtar row — warm amber, distinct final-cost highlight.
@@ -107,9 +126,12 @@ def build_excel(batches: list[BatchOut]) -> bytes:
         padtar_cell.fill, padtar_cell.font = _fill(PADTAR_FILL), Font(color=PADTAR_TEXT, bold=True)
         row += 1
 
+        _bold_outline(ws, batch_start, row - 1, 1, 5)
+
         # Oil-sit sub-table — nava + juna + toppa − parat = net vaprash (dabba).
         if batch.oil_sit is not None:
             row += 1  # small gap
+            oil_start = row
             oil_header = ws.cell(row=row, column=1, value="Oil Sheet")
             oil_header.fill, oil_header.font = _fill(OIL_SIT_FILL), Font(color=OIL_SIT_TEXT, bold=True)
             for c in range(2, 6):
@@ -126,31 +148,35 @@ def build_excel(batches: list[BatchOut]) -> bytes:
             ):
                 cell = ws.cell(row=row, column=col, value=round(v, 4) if v is not None else None)
                 cell.border = THIN_BORDER
-                if col == 5:  # net vaprash — highlight
-                    cell.fill, cell.font = _fill(OIL_SIT_FILL), Font(color=OIL_SIT_TEXT, bold=True)
+                if col == 5:  # net vaprash — distinct green highlight
+                    cell.fill, cell.font = _fill(SUBTOTAL_FILL), Font(color=SUBTOTAL_TEXT, bold=True)
             row += 1
+            _bold_outline(ws, oil_start, row - 1, 1, 5)
+
+        # Notes section — below oil sheet (or below batch block if no oil sheet)
+        parsed_notes = parse_notes(batch.notes) if batch.notes else []
+        has_notes = bool(parsed_notes) and parsed_notes != [("", "")]
+        if has_notes:
+            row += 1
+            ws.cell(row=row, column=1, value="Notes").font = Font(bold=True, italic=True)
+            row += 1
+            notes_start = row
+            for col, header in enumerate(["Date", "Note", "Amount (₹)"], start=1):
+                cell = ws.cell(row=row, column=col, value=header)
+                cell.fill, cell.font, cell.border = _fill(HEADER_FILL), Font(bold=True), THIN_BORDER
+            ws.cell(row=row, column=3).alignment = Alignment(horizontal="right")
+            row += 1
+            for i, (note_text, detail) in enumerate(parsed_notes):
+                ws.cell(row=row, column=1, value=batch.date.strftime("%d %b %Y") if i == 0 else "").border = THIN_BORDER
+                ws.cell(row=row, column=2, value=note_text).border = THIN_BORDER
+                c = ws.cell(row=row, column=3, value=detail)
+                c.border, c.alignment = THIN_BORDER, Alignment(horizontal="right")
+                row += 1
+            _bold_outline(ws, notes_start, row - 1, 1, 3)
 
         row += 1  # blank separator row before the next batch block
 
-    # Date | Amount | Note — the stored pair is [note, detail] but detail IS the
-    # amount, and the client reads the amount first.
-    notes_ws = wb.create_sheet("Notes")
-    notes_ws.column_dimensions["A"].width = 16
-    notes_ws.column_dimensions["B"].width = 16
-    notes_ws.column_dimensions["C"].width = 60
-    notes_ws.append(["Date", "Amount", "Note"])
-    for cell in notes_ws[1]:
-        cell.font = Font(bold=True)
-        cell.fill = _fill(HEADER_FILL)
-    for batch in sorted(batches, key=lambda b: b.date):
-        for i, (note, detail) in enumerate(parse_notes(batch.notes)):
-            notes_ws.append([batch.date.strftime("%d %b %Y") if i == 0 else "", detail, note])
-            for cell in notes_ws[notes_ws.max_row]:
-                cell.alignment = Alignment(wrap_text=True, vertical="top")
-            notes_ws.cell(row=notes_ws.max_row, column=2).alignment = Alignment(horizontal="right", vertical="top")
-
     fit_to_one_page(ws)
-    fit_to_one_page(notes_ws)
 
     buffer = BytesIO()
     wb.save(buffer)

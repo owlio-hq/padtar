@@ -126,6 +126,8 @@ def build_days_excel(days: list[DayOut]) -> bytes:
 
         fs_label = ws.cell(row=row, column=1, value="Factory Sales")
         fs_label.fill, fs_label.font = _fill(SUBTOTAL_FILL), Font(color=SUBTOTAL_TEXT, bold=True)
+        for fc in range(2, 7):
+            ws.cell(row=row, column=fc).fill = _fill(SUBTOTAL_FILL)
         c = ws.cell(row=row, column=7, value=round(day.factory_sales, 2))
         c.fill, c.font = _fill(SUBTOTAL_FILL), Font(color=SUBTOTAL_TEXT, bold=True)
         _bold_outline(ws, sales_header_row, row, 1, 7)
