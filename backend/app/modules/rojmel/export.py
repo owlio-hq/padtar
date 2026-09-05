@@ -134,7 +134,7 @@ def build_days_excel(days: list[DayOut]) -> bytes:
         # Income (cols A-C) and Kharcho (cols E-G) side-by-side.
         # Column order: Description | Note | Amount (₹) — amount on the right.
         # Thick red right-border on col C separates the two sides visually.
-        _red_side = Side(style="medium", color=NEGATIVE_FILL)
+        _red_side = Side(style="medium", color="CC0000")
         income_lines = day.income_lines or []
         expense_lines = day.expense_lines or []
 
@@ -190,8 +190,8 @@ def build_days_excel(days: list[DayOut]) -> bytes:
         # Bold outlines on Income (A-C) and Kharcho (E-G)
         _bold_outline(ws, money_header_row, row - 1, 1, 3)
         _bold_outline(ws, money_header_row, row - 1, 5, 7)
-        # Red right border on col C — use medium+red so it's visible alongside bold outline
-        _red_bold = Side(style="medium", color=NEGATIVE_FILL)
+        # Red right border on col C — actual red, not pale pink NEGATIVE_FILL
+        _red_bold = Side(style="medium", color="CC0000")
         for r in range(money_header_row, row):
             c3 = ws.cell(row=r, column=3)
             c3.border = Border(
@@ -215,10 +215,12 @@ def build_days_excel(days: list[DayOut]) -> bytes:
 
             cf_header_row = row
             if has_cf:
-                for col, header in enumerate(["Name", "", "Carry Forward (₹)"], start=1):
-                    cell = ws.cell(row=row, column=col, value=header)
-                    cell.fill, cell.font, cell.border = _fill(HEADER_FILL), Font(bold=True), THIN_BORDER
-                ws.cell(row=row, column=3).alignment = Alignment(horizontal="right")
+                cell = ws.cell(row=row, column=1, value="Name")
+                cell.fill, cell.font, cell.border = _fill(HEADER_FILL), Font(bold=True), THIN_BORDER
+                ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=2)
+                cell = ws.cell(row=row, column=3, value="Carry Forward (₹)")
+                cell.fill, cell.font, cell.border = _fill(HEADER_FILL), Font(bold=True), THIN_BORDER
+                cell.alignment = Alignment(horizontal="right")
             if has_notes:
                 for offset, header in enumerate(["Date", "Note", "Amount (₹)"]):
                     cell = ws.cell(row=row, column=5 + offset, value=header)
@@ -230,14 +232,15 @@ def build_days_excel(days: list[DayOut]) -> bytes:
             max_side = max(len(cf_lines) + (1 if has_cf else 0), len(parsed_notes))
             for i in range(max_side):
                 if has_cf and i < len(cf_lines):
-                    ws.cell(row=row, column=1, value=cf_lines[i].name).border = THIN_BORDER
-                    ws.cell(row=row, column=2).border = THIN_BORDER
+                    ws.cell(row=row, column=1, value=cf_lines[i].name)
+                    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=2)
                     c = ws.cell(row=row, column=3, value=cf_lines[i].amount)
                     c.border, c.alignment = THIN_BORDER, Alignment(horizontal="right")
                 elif has_cf and i == len(cf_lines):
-                    total_label = ws.cell(row=row, column=1, value="Total")
-                    total_label.fill, total_label.font, total_label.border = _fill(SUBTOTAL_FILL), Font(color=SUBTOTAL_TEXT, bold=True), THIN_BORDER
-                    ws.cell(row=row, column=2).fill, ws.cell(row=row, column=2).border = _fill(SUBTOTAL_FILL), THIN_BORDER
+                    ws.cell(row=row, column=1, value="Total")
+                    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=2)
+                    ws.cell(row=row, column=1).fill = _fill(SUBTOTAL_FILL)
+                    ws.cell(row=row, column=1).font = Font(color=SUBTOTAL_TEXT, bold=True)
                     c = ws.cell(row=row, column=3, value=round(sum(cf.amount for cf in cf_lines), 2))
                     c.fill, c.font, c.border = _fill(SUBTOTAL_FILL), Font(color=SUBTOTAL_TEXT, bold=True), THIN_BORDER
                     c.alignment = Alignment(horizontal="right")
