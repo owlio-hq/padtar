@@ -35,7 +35,21 @@ from app.core.pdf import BODY_STYLE, SECTION_STYLE, new_document, notes_section,
 from app.modules.rojmel.schemas import DayOut, StockRowOut
 
 _thin_side = Side(style="thin", color=BORDER_COLOR)
+_bold_side = Side(style="medium", color="000000")
 THIN_BORDER = Border(left=_thin_side, right=_thin_side, top=_thin_side, bottom=_thin_side)
+
+
+def _bold_outline(ws, top_row: int, bottom_row: int, left_col: int, right_col: int) -> None:
+    """Apply a bold (medium) black outer border around a rectangular cell range."""
+    for r in range(top_row, bottom_row + 1):
+        for c in range(left_col, right_col + 1):
+            cell = ws.cell(row=r, column=c)
+            existing = cell.border
+            new_left = _bold_side if c == left_col else existing.left
+            new_right = _bold_side if c == right_col else existing.right
+            new_top = _bold_side if r == top_row else existing.top
+            new_bottom = _bold_side if r == bottom_row else existing.bottom
+            cell.border = Border(left=new_left, right=new_right, top=new_top, bottom=new_bottom)
 
 
 def _fill(hex_color: str) -> PatternFill:
@@ -86,6 +100,7 @@ def build_days_excel(days: list[DayOut]) -> bytes:
 
         # Column order: Product | Rate | OPP.PIC | CLO.PIC | NET.PIC | Sales | Total
         # (the stock trio sits together, then the count they type, then the money)
+        sales_header_row = row
         for col, header in enumerate(["Product", "Rate (₹)", "OPP.PIC", "CLO.PIC", "NET.PIC", "Sales", "Total (₹)"], start=1):
             cell = ws.cell(row=row, column=col, value=header)
             cell.fill, cell.font, cell.border = _fill(HEADER_FILL), Font(bold=True), THIN_BORDER
@@ -96,7 +111,6 @@ def build_days_excel(days: list[DayOut]) -> bytes:
             ws.cell(row=row, column=1, value=s.product).border = THIN_BORDER
             c = ws.cell(row=row, column=2, value=s.rate)
             c.fill, c.font, c.border, c.alignment = _fill(RATE_FILL), Font(color=RATE_TEXT), THIN_BORDER, center
-            # OPP.PIC (opening) / CLO.PIC (closing) / NET.PIC (opening−closing, red when negative)
             for col, val in ((3, s.opening_pic), (4, s.closing_pic)):
                 c = ws.cell(row=row, column=col, value=val)
                 c.border, c.alignment = THIN_BORDER, right
@@ -114,6 +128,7 @@ def build_days_excel(days: list[DayOut]) -> bytes:
         fs_label.fill, fs_label.font = _fill(SUBTOTAL_FILL), Font(color=SUBTOTAL_TEXT, bold=True)
         c = ws.cell(row=row, column=7, value=round(day.factory_sales, 2))
         c.fill, c.font = _fill(SUBTOTAL_FILL), Font(color=SUBTOTAL_TEXT, bold=True)
+        _bold_outline(ws, sales_header_row, row, 1, 7)
         row += 2
 
         # Income (cols A-C) and Kharcho (cols E-G) side-by-side.
@@ -172,9 +187,76 @@ def build_days_excel(days: list[DayOut]) -> bytes:
                 right=_red_side,
             )
 
+        # Bold outlines on Income (A-C) and Kharcho (E-G), then re-apply red on C
+        _bold_outline(ws, money_header_row, row - 1, 1, 3)
+        _bold_outline(ws, money_header_row, row - 1, 5, 7)
+        # Re-apply red right border on col C (bold outline overwrote it)
+        for r in range(money_header_row, row):
+            c3 = ws.cell(row=r, column=3)
+            c3.border = Border(
+                left=c3.border.left, top=c3.border.top, bottom=c3.border.bottom,
+                right=_red_side,
+            )
+
         row += 1
 
-        # Summary — stacked vertically: Income, Kharcho, Cash on Hand
+        # Carry Forward (cols A-B) and Notes (cols E-G) side-by-side
+        parsed_notes = parse_notes(day.notes) if day.notes else []
+        has_cf = bool(day.carry_forward_lines)
+        has_notes = bool(parsed_notes) and parsed_notes != [("", "")]
+
+        if has_cf or has_notes:
+            cf_title_row = row
+            if has_cf:
+                ws.cell(row=row, column=1, value="Carry Forward").font = Font(bold=True, italic=True)
+            if has_notes:
+                ws.cell(row=row, column=5, value="Notes").font = Font(bold=True, italic=True)
+            row += 1
+
+            cf_header_row = row
+            if has_cf:
+                for col, header in enumerate(["Name", "Carry Forward (₹)"], start=1):
+                    cell = ws.cell(row=row, column=col, value=header)
+                    cell.fill, cell.font, cell.border = _fill(HEADER_FILL), Font(bold=True), THIN_BORDER
+                ws.cell(row=row, column=2).alignment = Alignment(horizontal="right")
+            if has_notes:
+                for offset, header in enumerate(["Date", "Note", "Amount (₹)"]):
+                    cell = ws.cell(row=row, column=5 + offset, value=header)
+                    cell.fill, cell.font, cell.border = _fill(HEADER_FILL), Font(bold=True), THIN_BORDER
+                ws.cell(row=row, column=7).alignment = Alignment(horizontal="right")
+            row += 1
+
+            cf_data_start = row
+            cf_lines = day.carry_forward_lines or []
+            max_side = max(len(cf_lines) + (1 if has_cf else 0), len(parsed_notes))
+            for i in range(max_side):
+                if has_cf and i < len(cf_lines):
+                    ws.cell(row=row, column=1, value=cf_lines[i].name).border = THIN_BORDER
+                    c = ws.cell(row=row, column=2, value=cf_lines[i].amount)
+                    c.border, c.alignment = THIN_BORDER, Alignment(horizontal="right")
+                elif has_cf and i == len(cf_lines):
+                    total_label = ws.cell(row=row, column=1, value="Total")
+                    total_label.fill, total_label.font, total_label.border = _fill(SUBTOTAL_FILL), Font(color=SUBTOTAL_TEXT, bold=True), THIN_BORDER
+                    c = ws.cell(row=row, column=2, value=round(sum(cf.amount for cf in cf_lines), 2))
+                    c.fill, c.font, c.border = _fill(SUBTOTAL_FILL), Font(color=SUBTOTAL_TEXT, bold=True), THIN_BORDER
+                    c.alignment = Alignment(horizontal="right")
+                if has_notes and i < len(parsed_notes):
+                    note_text, detail = parsed_notes[i]
+                    ws.cell(row=row, column=5, value=day.date.strftime("%d %b %Y") if i == 0 else "").border = THIN_BORDER
+                    ws.cell(row=row, column=6, value=note_text).border = THIN_BORDER
+                    c = ws.cell(row=row, column=7, value=detail)
+                    c.border, c.alignment = THIN_BORDER, Alignment(horizontal="right")
+                row += 1
+
+            if has_cf:
+                _bold_outline(ws, cf_header_row, row - 1, 1, 2)
+            if has_notes:
+                _bold_outline(ws, cf_header_row, row - 1, 5, 7)
+
+            row += 1
+
+        # Summary — stacked vertically: Income, Kharcho, Cash on Hand (below carry forward/notes)
+        summary_start = row
         for label, val, fill_c, text_c in (
             ("Income:", round(day.total_income, 2), SUBTOTAL_FILL, SUBTOTAL_TEXT),
             ("Kharcho:", round(day.total_expense, 2), NEGATIVE_FILL, NEGATIVE_TEXT),
@@ -190,43 +272,8 @@ def build_days_excel(days: list[DayOut]) -> bytes:
             v.alignment = Alignment(horizontal="right")
             v.border = THIN_BORDER
             row += 1
-        row += 1
-
-        if day.carry_forward_lines:
-            ws.cell(row=row, column=1, value="Carry Forward").font = Font(bold=True, italic=True)
-            row += 1
-            for col, header in enumerate(["Name", "Carry Forward (₹)"], start=1):
-                cell = ws.cell(row=row, column=col, value=header)
-                cell.fill, cell.font = _fill(HEADER_FILL), Font(bold=True)
-            row += 1
-            for cf in day.carry_forward_lines:
-                ws.cell(row=row, column=1, value=cf.name)
-                ws.cell(row=row, column=2, value=cf.amount)
-                row += 1
-            # Informational total — deliberately NOT part of Cash on Hand.
-            total_label = ws.cell(row=row, column=1, value="Total")
-            total_label.fill, total_label.font = _fill(SUBTOTAL_FILL), Font(color=SUBTOTAL_TEXT, bold=True)
-            c = ws.cell(row=row, column=2, value=round(sum(cf.amount for cf in day.carry_forward_lines), 2))
-            c.fill, c.font = _fill(SUBTOTAL_FILL), Font(color=SUBTOTAL_TEXT, bold=True)
-            row += 2
-
-    # Notes section at bottom of same sheet (not a separate sheet)
-    note_entries = [(d, parse_notes(d.notes)) for d in sorted(days, key=lambda d: d.date) if d.notes]
-    if note_entries:
-        ws.cell(row=row, column=1, value="Notes").font = Font(bold=True, italic=True, size=12)
-        row += 1
-        for col, header in enumerate(["Date", "Note", "Amount (₹)"], start=1):
-            cell = ws.cell(row=row, column=col, value=header)
-            cell.fill, cell.font, cell.border = _fill(HEADER_FILL), Font(bold=True), THIN_BORDER
-        ws.cell(row=row, column=3).alignment = Alignment(horizontal="right")
-        row += 1
-        for day, parsed in note_entries:
-            for i, (note, detail) in enumerate(parsed):
-                ws.cell(row=row, column=1, value=day.date.strftime("%d %b %Y") if i == 0 else "").border = THIN_BORDER
-                ws.cell(row=row, column=2, value=note).border = THIN_BORDER
-                c = ws.cell(row=row, column=3, value=detail)
-                c.border, c.alignment = THIN_BORDER, Alignment(horizontal="right")
-                row += 1
+        _bold_outline(ws, summary_start, row - 1, 1, 2)
+        row += 2
 
     fit_to_one_page(ws)
 

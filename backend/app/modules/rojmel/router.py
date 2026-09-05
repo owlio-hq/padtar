@@ -68,7 +68,7 @@ def _serialize(day: RojmelDay) -> DayOut:
     expense_out = [
         {"id": m.id, "description": m.description, "amount": m.amount, "note": m.note} for m in day.expense_lines
     ]
-    carry_out = [{"id": c.id, "name": c.name, "amount": c.amount} for c in day.carry_forward_lines]
+    carry_out = [{"id": c.id, "name": c.name, "amount": c.amount, "carry_forward": c.carry_forward} for c in day.carry_forward_lines]
 
     return DayOut(
         id=day.id,
