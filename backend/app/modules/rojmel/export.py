@@ -134,7 +134,7 @@ def build_days_excel(days: list[DayOut]) -> bytes:
         # Income (cols A-C) and Kharcho (cols E-G) side-by-side.
         # Column order: Description | Note | Amount (₹) — amount on the right.
         # Thick red right-border on col C separates the two sides visually.
-        _red_side = Side(style="medium", color="CC0000")
+        _red_side = Side(style="medium", color="000000")
         income_lines = day.income_lines or []
         expense_lines = day.expense_lines or []
 
