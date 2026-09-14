@@ -209,10 +209,11 @@ def get_carry_in(before: date_type, db: Session = Depends(get_db)):
     if previous is None:
         return CarryInOut(source_date=None, carry_forward_lines=[], notes=None, stock_opening=[])
 
-    inherited = [
-        {"name": line.name, "amount": line.amount}
-        for line in previous.carry_forward_lines
-        if line.carry_forward
+    checked = [line for line in previous.carry_forward_lines if line.carry_forward]
+    inherited = [{"name": line.name, "amount": line.amount} for line in checked]
+    cf_income = [
+        {"description": line.name, "amount": line.amount, "note": "carry forward"}
+        for line in checked
     ]
 
     prev_result = engine.compute_day(
@@ -226,6 +227,7 @@ def get_carry_in(before: date_type, db: Session = Depends(get_db)):
     return CarryInOut(
         source_date=previous.date,
         carry_forward_lines=inherited,
+        carry_forward_income=cf_income,
         notes=previous.notes,
         stock_opening=stock_opening,
     )

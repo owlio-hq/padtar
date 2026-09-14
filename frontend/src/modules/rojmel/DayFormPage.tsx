@@ -270,6 +270,12 @@ export function DayFormPage() {
     setCarryForward(
       (carryIn.carry_forward_lines ?? []).map((c) => ({ name: c.name, amount: c.amount, carry_forward: false })),
     )
+    if (carryIn.carry_forward_income?.length) {
+      setIncomeLines((prev) => [
+        ...carryIn.carry_forward_income.map((c) => ({ description: c.description, amount: c.amount, note: c.note })),
+        ...prev,
+      ])
+    }
     setNotes(carryIn.notes ?? '')
     if (carryIn.stock_opening?.length) {
       const stockMap = new Map(carryIn.stock_opening.map((s) => [s.product, s.opening_pic]))

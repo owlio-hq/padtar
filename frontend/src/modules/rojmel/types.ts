@@ -52,6 +52,7 @@ export interface DayInput {
 export interface CarryIn {
   source_date: string | null
   carry_forward_lines: { name: string; amount: number }[]
+  carry_forward_income: { description: string; amount: number; note: string }[]
   notes: string | null
   stock_opening: { product: string; opening_pic: number }[]
 }

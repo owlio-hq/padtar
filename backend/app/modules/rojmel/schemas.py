@@ -55,6 +55,12 @@ class StockCarryOut(BaseModel):
     opening_pic: float
 
 
+class CarryInIncomeOut(BaseModel):
+    description: str
+    amount: float
+    note: str = ""
+
+
 class CarryInOut(BaseModel):
     """What a brand-new day inherits from the most recent earlier day: checked
     carry-forward rows, notes, and stock opening (previous day's sales = CLO.PIC).
@@ -62,6 +68,7 @@ class CarryInOut(BaseModel):
 
     source_date: date | None = None
     carry_forward_lines: list[CarryInLineOut] = []
+    carry_forward_income: list[CarryInIncomeOut] = []
     notes: str | None = None
     stock_opening: list[StockCarryOut] = []
 
